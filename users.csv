@@ -1,0 +1,7 @@
+type,dept_name,username,password,role
+dept,信息技术部,,,
+user,信息技术部,admin,admin123,admin
+dept,办公室,,,
+user,办公室,admin,admin123,admin
+dept,研究室,,,
+user,研究室,admin,admin123,admin
