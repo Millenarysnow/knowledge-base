@@ -1,0 +1,91 @@
+# 智能知识库配置
+
+app:
+  name: 智能知识库
+  default_language: zh-CN
+  timezone: Asia/Shanghai
+
+paths:
+  documents: data/documents
+  raw: data/raw
+  wiki: data/wiki
+  site: data/site
+  db: data/db/kb.sqlite3
+
+# 默认部门，init 时自动创建
+departments:
+  - 信息技术部
+  - 办公室
+  - 研究室
+
+# 统一分类字典。公共区和部门区共用。
+categories:
+  - key: 行政
+    label: 行政
+    keywords:
+      - 通知
+      - 制度
+      - 办法
+      - 规定
+      - 流程
+      - 规范
+      - 公告
+      - 行政
+      - 人事
+      - 财务
+      - 合同
+      - 公文
+  - key: 技术
+    label: 技术
+    keywords:
+      - 技术
+      - 系统
+      - 架构
+      - 接口
+      - API
+      - 数据库
+      - 部署
+      - 运维
+      - 服务器
+      - 网络
+      - 安全
+      - 代码
+  - key: 会议
+    label: 会议
+    keywords:
+      - 会议
+      - 纪要
+      - 讨论
+      - 决议
+      - 例会
+      - 评审
+      - 研讨
+      - 座谈
+  - key: 报告
+    label: 报告
+    keywords:
+      - 报告
+      - 总结
+      - 汇报
+      - 分析
+      - 调研
+      - 统计
+      - 年度
+      - 季度
+      - 月度
+      - 评估
+
+models:
+  ollama_base_url: http://ollama:11434
+  chat_model: qwen2.5:7b
+  embedding_model: bge-m3
+
+anythingllm:
+  base_url: http://anythingllm:3001
+  public_workspace_slug: public
+  # API Key 在部署后从 AnythingLLM 管理后台创建，然后写入环境变量 ANYTHINGLLM_API_KEY。
+  api_key_env: ANYTHINGLLM_API_KEY
+
+site:
+  # 浏览权限最终需要接入认证；MVP 先生成站点，权限由前置网关/后续服务控制。
+  enable_auth_note: true

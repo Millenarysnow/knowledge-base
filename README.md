@@ -1,150 +1,199 @@
 # 智能知识库
 
-本地化团队知识管理平台，AnythingLLM + LLM Wiki + Ollama，纯脚本零代码。
+本项目用于构建一个**本地化部署、基于 AnythingLLM + Ollama 的团队智能知识库**。
 
-## 架构
+核心能力：
 
-```
-                         访问入口
-                            │
-    ┌───────────┬───────────┼───────────┬───────────┐
-    │           │           │           │           │
-    ▼           ▼           ▼           ▼           ▼
- :80        :8301       :8888       命令行       crontab
- Nginx      AnythingLLM  部门上传   compile-wiki  定时更新
- 浏览        问答         界面        import
-                            │
-    ┌───────────────────────┼───────────────────────┐
-    │                       ▼                       │
-    │  ┌──────────┐  ┌──────────────┐  ┌──────────┐ │
-    │  │ Ollama   │  │ LLM Wiki     │  │ 自建脚本  │ │
-    │  │ :11434   │  │ build        │  │ doc-parser│ │
-    │  │ LLM推理   │  │ 编译+图谱     │  │ ai-classify│ │
-    │  └──────────┘  └──────────────┘  └──────────┘ │
-    └───────────────────────────────────────────────┘
-```
+- 公共区 + 部门区文档管理
+- AnythingLLM 用户体系与部门 workspace 隔离
+- PDF / DOC / DOCX / WPS / OFD / MD / TXT 批量导入
+- 文件元数据表与签阅记录表同批导入
+- 签阅记录进入问答上下文
+- 结构化 Markdown 生成
+- 结构化浏览站点与原文件下载
 
-## 文件结构
+> 说明：原需求中提到的 “LLM Wiki” 在这里实现为结构化 Markdown、静态站点与知识图谱能力，不再强依赖 Pratiyush/llm-wiki。
 
-```
-knowledge-base/
+## 1. 架构
 
-├── install.sh                   # 一键安装
-├── docker-compose.yml           # 4 服务编排
-├── .env                         # 环境变量
-├── README.md
-├── llmwiki/config.yaml          # 分类配置
-├── nginx/conf.d/default.conf    # Nginx 配置
-├── scripts/
-│   ├── compile-wiki.sh          # ★ 主控脚本（日常唯一入口）
-│   ├── doc-parser.py            # 文档解析: PDF/DOCX → raw/*.md
-│   ├── ai-classify.py           # AI分类: 调用Ollama → wiki/*.md
-│   ├── auto-sort.sh             # 自动归类
-│   ├── upload-server.py         # 部门上传界面
-│   ├── create-dept.sh           # 创建单个部门
-│   ├── import-dept.sh           # 导入文档到部门
-│   ├── import-users.sh          # CSV/Excel 批量导入部门+用户
-│   ├── import-view-records.py   # 导入文件查阅记录
-│   ├── manage-workspaces.sh     # AnythingLLM workspace管理
-│   ├── pull-models.sh           # 模型拉取
-│   └── update-kb.sh             # 定时增量更新
-├── users.csv                    # 部门/用户模板
-└── volumes/
-    ├── ollama/
-    ├── anythingllm/
-    ├── documents/               # 数据源
-    │   ├── public/              #   公共区
-    │   │   └── YYYY/MM/DD/分类/文件
-    │   └── dept-信息技术部/      #   部门区
-    │       └── YYYY/MM/DD/分类/文件
-    ├── llm-wiki-storage/
-    │   ├── raw/                 # 文档解析产物
-    │   └── wiki/                # AI 分类后结构化条目
-    ├── llm-wiki-site/           # 静态站点
-    └── users/                   # 部门/用户数据
+```text
+Ollama
+  本地 LLM / Embedding
+
+AnythingLLM
+  用户认证 / 部门 workspace / RAG 问答 / 用户上传
+
+KB Worker / kbctl
+  批量导入 / 元数据绑定 / 签阅记录绑定 / 文档解析 / 站点生成 / AnythingLLM 同步
+
+Nginx
+  结构化浏览站点 / 原文件下载
 ```
 
-## 快速开始
+## 2. 快速开始
+
+### 2.1 安装依赖
+
+本地执行 CLI：
 
 ```bash
-# 1. 一键安装
-chmod +x install.sh scripts/*.sh
-./install.sh
-
-# 2. 批量导入文档
-./scripts/compile-wiki.sh import /path/to/docs/
-
-# 3. 导入到部门
-./scripts/compile-wiki.sh import /path/to/docs/ --dept 信息技术部
-
-# 4. 导入文件查阅记录（可选）
-./scripts/compile-wiki.sh import-records ./查阅记录.csv
-
-# 5. 访问
-#    知识浏览:   http://localhost
-#    智能问答:   http://localhost:8301
-#    部门上传:   http://localhost:8888/upload
+pip install -r requirements.txt
 ```
 
-## 完整数据流
-
-```
-原始文档 (PDF/DOCX/WPS/OFD/MD/TXT)
-    │
-    ▼  doc-parser.py（自建）
-    │  pypdf / python-docx / LibreOffice 兜底
-storage/raw/<分类>/<文件名>.md       ← 纯文本 + frontmatter
-    │
-    ▼  ai-classify.py（自建，调用 Ollama）
-    │  分类判定 + 摘要 + 实体提取 + [[wikilinks]]
-storage/wiki/<分类>/<文件名>.md      ← 结构化 Markdown
-    │
-    ▼  llmwiki build（LLM Wiki 原生）
-    │  HTML + search-index + graph.jsonld + llms.txt
-site/                               ← 静态站点产物
-    │
-    ├─→ Nginx :80       ← 浏览 + 知识图谱
-    └─→ AnythingLLM :8301 ← RAG 问答 + 溯源下载
-```
-
-## 命令清单
-
-| 命令 | 用途 |
-|------|------|
-| `./scripts/compile-wiki.sh import <目录>` | 批量导入到公共区 |
-| `./scripts/compile-wiki.sh import <目录> --dept <部门>` | 导入到部门区 |
-| `./scripts/compile-wiki.sh import-records <csv>` | 导入文件查阅记录 |
-| `./scripts/compile-wiki.sh build` | 重新编译站点 |
-| `./scripts/compile-wiki.sh status` | 查看统计和状态 |
-| `./scripts/import-users.sh users.csv` | 批量导入部门/用户 |
-| `./scripts/create-dept.sh <部门名>` | 创建单个部门 |
-| `./scripts/pull-models.sh` | 拉取/切换模型 |
-| `./scripts/manage-workspaces.sh init` | 创建 AnythingLLM workspace |
-
-## 部门隔离
-
-| 用户 | 问答可见范围 |
-|------|------------|
-| 所有用户 | 公共区 |
-| 信息技术部成员 | 公共区 + 信息技术部 |
-| 办公室成员 | 公共区 + 办公室 |
-| 研究室成员 | 公共区 + 研究室 |
-
-## 模型切换
-
-编辑 `.env`:
-```bash
-OLLAMA_MODEL=qwen2.5:1.5b   # 轻量（8GB内存）
-OLLAMA_MODEL=qwen2.5:7b     # 标准（16GB内存）
-OLLAMA_MODEL=qwen2.5:14b    # 性能（32GB内存）
-```
-
-## 自动更新
+### 2.2 初始化
 
 ```bash
-(crontab -l 2>/dev/null; echo "0 2 * * * $(pwd)/scripts/update-kb.sh") | crontab -
+python -m kb.cli init
+python -m kb.cli status
 ```
 
-## 支持格式
+默认创建三个部门：
 
-PDF / DOCX / DOC / WPS / OFD / MD / TXT
+```text
+信息技术部
+办公室
+研究室
+```
+
+### 2.3 启动 Docker 服务
+
+```bash
+docker compose -f docker-compose.v2.yml up -d
+```
+
+访问：
+
+```text
+AnythingLLM: http://localhost:8301
+结构化浏览: http://localhost
+```
+
+## 3. 导入用户
+
+CSV 示例：
+
+```csv
+type,dept_name,username,password,role
+dept,信息技术部,,,
+user,信息技术部,zhangsan,123456,member
+user,信息技术部,itadmin,123456,admin
+```
+
+导入：
+
+```bash
+python -m kb.cli import-users users.csv
+```
+
+## 4. 导入文档
+
+### 4.1 文件元数据表
+
+```csv
+文件标识,文件标题,文件类型,文件名,文件事项ID,文件字号,文件流水号
+7acf3850-4b7a-11f1-8da1-fa163e4c1d80,关于安全生产的通知,行政,7acf3850-4b7a-11f1-8da1-fa163e4c1d80.pdf,sDKC3sDU,通知（10）号,20260512
+```
+
+### 4.2 签阅记录表
+
+```csv
+事项id,签阅人,签阅时间,签阅意见
+sDKC3sDU,张三,2026/5/12 7:11,已阅
+sDKC3sDU,李四,2026/5/12 11:11,同意
+```
+
+### 4.3 公共区导入
+
+```bash
+python -m kb.cli import-docs \
+  --zone public \
+  --source ./input/files \
+  --metadata ./input/file_meta.csv \
+  --sign-records ./input/sign_records.csv
+```
+
+### 4.4 部门区导入
+
+```bash
+python -m kb.cli import-docs \
+  --zone dept \
+  --dept 信息技术部 \
+  --source ./input/files \
+  --metadata ./input/file_meta.csv \
+  --sign-records ./input/sign_records.csv
+```
+
+## 5. 构建结构化浏览站点
+
+```bash
+python -m kb.cli build-site
+```
+
+输出目录：
+
+```text
+data/site
+```
+
+## 6. 同步 AnythingLLM
+
+先在 AnythingLLM 管理界面创建 API Key，然后设置环境变量：
+
+```bash
+export ANYTHINGLLM_API_KEY=ANLLM-xxxx
+```
+
+Windows CMD：
+
+```cmd
+set ANYTHINGLLM_API_KEY=ANLLM-xxxx
+```
+
+同步：
+
+```bash
+python -m kb.cli sync-anythingllm
+```
+
+只同步 workspace 和文档、不创建用户：
+
+```bash
+python -m kb.cli sync-anythingllm --skip-users
+```
+
+> AnythingLLM API 会随版本变化，如同步失败，请访问 `http://localhost:8301/api/docs` 核对接口。
+
+## 7. 分类优先级
+
+```text
+元数据表分类 > 目录分类 > 文件名/内容关键词分类 > AI 分类 > 未分类
+```
+
+当前 MVP 已实现：
+
+```text
+元数据表分类 > 目录分类 > 文件名/内容关键词分类 > 未分类
+```
+
+AI 分类后续接 Ollama。
+
+## 8. 权限模型
+
+- 普通用户：只能访问公共区 + 本部门。
+- 管理员：可访问全部。
+- 问答权限通过 AnythingLLM workspace 隔离。
+- 结构化浏览权限后续通过轻量 Web 服务或前置网关实现；当前 MVP 先生成静态站点。
+
+## 9. 开发验证
+
+运行冒烟测试：
+
+```bash
+python tests/test_smoke.py
+```
+
+## 10. 文档
+
+- [重构计划](docs/REBUILD_PLAN.md)
+- [技术设计](docs/DESIGN.md)
+- [运维手册](docs/OPERATIONS.md)
