@@ -58,7 +58,7 @@ services:
       - "80:80"
     volumes:
       - ./data/site:/usr/share/nginx/html:ro
-      - ./data/documents:/usr/share/nginx/html/files:ro
+      - ./data/documents:/usr/share/nginx/files:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
     depends_on:
       - kb-worker
