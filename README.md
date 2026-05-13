@@ -197,3 +197,6 @@ python tests/test_smoke.py
 - [重构计划](docs/REBUILD_PLAN.md)
 - [技术设计](docs/DESIGN.md)
 - [运维手册](docs/OPERATIONS.md)
+- [后续开发计划](docs/NEXT_STEPS.md)
+- [已开发内容说明](docs/IMPLEMENTATION.md)
+- [重构思路说明](docs/ARCHITECTURE_THINKING.md)
