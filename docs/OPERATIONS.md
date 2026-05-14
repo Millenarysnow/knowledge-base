@@ -142,7 +142,22 @@ http://localhost:8301/api/docs
 
 核对当前版本 API。
 
-## 9. 模型配置
+## 9. 从 AnythingLLM 同步用户上传文件
+
+用户日常上传文件走 AnythingLLM 界面。为了让这些文件进入本地结构化浏览，可使用兜底扫描命令：
+
+```bash
+python -m kb.cli sync-from-anythingllm --default-dept 信息技术部
+```
+
+说明：
+
+- 默认扫描 `data/anythingllm`。
+- 如果路径中能识别部门名或 workspace slug，会自动归属部门。
+- 如果无法识别部门，可以用 `--default-dept` 指定。
+- 该实现是保守扫描，后续可根据实际 `/api/docs` 或 AnythingLLM 存储结构增强为精确同步。
+
+## 10. 模型配置
 
 `.env`：
 
@@ -157,7 +172,7 @@ EMBEDDING_MODEL=bge-m3
 OLLAMA_MODEL=qwen2.5:1.5b
 ```
 
-## 10. 结构化浏览权限
+## 11. 结构化浏览权限
 
 浏览站点入口：
 
@@ -179,9 +194,9 @@ admin：可访问全部文档
 
 文件下载必须通过 `kb-web` 的 `/files/{doc_id}`，不要直接暴露 `data/documents`。
 
-## 11. 常见问题
+## 12. 常见问题
 
-### 11.1 Windows 控制台输出乱码
+### 12.1 Windows 控制台输出乱码
 
 设置：
 
@@ -189,18 +204,18 @@ admin：可访问全部文档
 set PYTHONIOENCODING=utf-8
 ```
 
-### 11.2 DOC/WPS/OFD 无法解析
+### 12.2 DOC/WPS/OFD 无法解析
 
 确认 LibreOffice 可用。
 
-### 11.3 AnythingLLM 同步失败
+### 12.3 AnythingLLM 同步失败
 
 1. 检查 API Key。
 2. 检查 AnythingLLM 地址。
 3. 打开 `/api/docs` 核对接口路径。
 4. 查看 `sync-anythingllm` 输出错误。
 
-### 11.4 用户通过 AnythingLLM 上传的文件没有出现在结构化站点
+### 12.4 用户通过 AnythingLLM 上传的文件没有出现在结构化站点
 
 这是后续需要实现的能力：从 AnythingLLM 存储目录/API 反向同步用户上传文件。
 当前 MVP 主要支持管理员批量导入。

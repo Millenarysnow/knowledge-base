@@ -2,14 +2,22 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 try:
     import requests
 except Exception:  # pragma: no cover
     requests = None
 
-from .db import connect, list_departments, list_documents
+from .db import (
+    connect,
+    list_departments,
+    list_documents,
+    log_sync,
+    mark_document_synced,
+    mark_document_uploaded,
+    mark_workspace_document,
+)
 
 
 class AnythingLLMClient:
@@ -35,14 +43,14 @@ class AnythingLLMClient:
     def candidate_urls(self, path: str) -> List[str]:
         if not path.startswith("/"):
             path = "/" + path
-        # path 传入不带 /api 或 /api/v1。
         return [self.base_url + "/api/v1" + path, self.base_url + "/api" + path]
 
     def request(self, method: str, path: str, **kwargs):
         errors: List[str] = []
+        timeout = kwargs.pop("timeout", 300)
         for url in self.candidate_urls(path):
             try:
-                r = self.session.request(method, url, timeout=kwargs.pop("timeout", 300), **kwargs)
+                r = self.session.request(method, url, timeout=timeout, **kwargs)
                 if r.status_code in {404, 405}:
                     errors.append(f"{url}: {r.status_code}")
                     continue
@@ -73,15 +81,14 @@ class AnythingLLMClient:
             pass
         return self.post("/workspace/new", json={"name": name, "slug": slug})
 
+    def workspace_details(self, slug: str) -> Dict[str, Any]:
+        return self.get(f"/workspace/{slug}")
+
     def list_users(self) -> List[Dict[str, Any]]:
         data = self.get("/admin/users")
         return data.get("users", []) if isinstance(data, dict) else []
 
     def ensure_user(self, username: str, password: str, role: str = "default") -> Optional[Dict[str, Any]]:
-        """创建用户。若已存在则返回现有用户。
-
-        AnythingLLM 角色常见值为 admin/default/manager。这里把 member 映射为 default。
-        """
         role = "admin" if role == "admin" else "default"
         try:
             for u in self.list_users():
@@ -137,7 +144,40 @@ def _extract_uploaded_ref(uploaded: Any, fallback_name: str) -> str:
     return fallback_name
 
 
-def sync_anythingllm(cfg: Dict[str, Any], sync_users: bool = True) -> Dict[str, Any]:
+def _workspace_documents(workspace: Any) -> List[Dict[str, Any]]:
+    if not isinstance(workspace, dict):
+        return []
+    w = workspace.get("workspace") or workspace
+    if not isinstance(w, dict):
+        return []
+    docs = w.get("documents") or []
+    return docs if isinstance(docs, list) else []
+
+
+def _remote_doc_refs(workspace: Any) -> set[str]:
+    refs: set[str] = set()
+    for d in _workspace_documents(workspace):
+        if not isinstance(d, dict):
+            continue
+        for key in ["location", "name", "docpath", "docPath", "id"]:
+            val = d.get(key)
+            if val:
+                refs.add(str(val))
+    return refs
+
+
+def _dedupe_preserve_order(items: Iterable[str]) -> List[str]:
+    seen: set[str] = set()
+    out: List[str] = []
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        out.append(item)
+    return out
+
+
+def sync_anythingllm(cfg: Dict[str, Any], sync_users: bool = True, incremental: bool = True) -> Dict[str, Any]:
     """同步工作区、用户和文档。
 
     - 为每个部门创建 workspace。
@@ -147,44 +187,69 @@ def sync_anythingllm(cfg: Dict[str, Any], sync_users: bool = True) -> Dict[str, 
     """
     client = AnythingLLMClient(cfg)
     project_root = Path(cfg["_project_root"])
-    result = {"workspaces": 0, "users": 0, "uploaded": 0, "embedded": 0, "errors": []}
+    result = {
+        "workspaces": 0,
+        "users": 0,
+        "uploaded": 0,
+        "embedded": 0,
+        "skipped_embedded": 0,
+        "errors": [],
+    }
+
     with connect(cfg) as conn:
         depts = list_departments(conn)
         docs = list_documents(conn)
         workspace_by_dept: Dict[str, Dict[str, Any]] = {}
+        workspace_id_by_dept: Dict[str, int] = {}
 
         for d in depts:
             try:
                 ws = client.ensure_workspace(d["name"], d["slug"])
                 workspace_by_dept[d["name"]] = ws
+                ws_id = _extract_workspace_id(ws)
+                if ws_id:
+                    workspace_id_by_dept[d["name"]] = ws_id
                 result["workspaces"] += 1
+                log_sync(conn, d["slug"], "ensure_workspace", "ok", d["name"])
             except Exception as exc:
-                result["errors"].append(f"workspace {d['name']}: {exc}")
+                msg = f"workspace {d['name']}: {exc}"
+                result["errors"].append(msg)
+                log_sync(conn, d["slug"], "ensure_workspace", "error", str(exc))
 
         if sync_users:
             rows = conn.execute("SELECT * FROM users ORDER BY id").fetchall()
-            # 先创建所有用户。
             users_by_dept: Dict[str, List[int]] = {}
             for u in rows:
                 try:
                     user = client.ensure_user(u["username"], u["password"] or "kb123456", u["role"])
                     if user and user.get("id") is not None:
-                        users_by_dept.setdefault(u["department"], []).append(int(user["id"]))
+                        user_id = int(user["id"])
+                        users_by_dept.setdefault(u["department"], []).append(user_id)
+                        conn.execute("UPDATE users SET anythingllm_user_id=? WHERE id=?", (str(user_id), u["id"]))
                         result["users"] += 1
                 except Exception as exc:
-                    result["errors"].append(f"user {u['username']}: {exc}")
-            # 再分配 workspace。
+                    msg = f"user {u['username']}: {exc}"
+                    result["errors"].append(msg)
+                    log_sync(conn, u["username"], "ensure_user", "error", str(exc))
+
             for dept_name, user_ids in users_by_dept.items():
-                ws_id = _extract_workspace_id(workspace_by_dept.get(dept_name))
+                ws_id = workspace_id_by_dept.get(dept_name)
                 if not ws_id or not user_ids:
                     continue
                 try:
-                    client.assign_workspace_users(ws_id, user_ids)
+                    client.assign_workspace_users(ws_id, [int(uid) for uid in _dedupe_preserve_order([str(uid) for uid in user_ids])])
+                    log_sync(conn, dept_name, "assign_workspace_users", "ok", str(user_ids))
                 except Exception as exc:
-                    result["errors"].append(f"assign users {dept_name}: {exc}")
+                    msg = f"assign users {dept_name}: {exc}"
+                    result["errors"].append(msg)
+                    log_sync(conn, dept_name, "assign_workspace_users", "error", str(exc))
 
         doc_ref_by_id: Dict[int, str] = {}
         for doc in docs:
+            existing_ref = doc["anythingllm_doc_name"]
+            if existing_ref and incremental and doc["synced_to_anythingllm"]:
+                doc_ref_by_id[int(doc["id"])] = existing_ref
+                continue
             try:
                 wiki_path = project_root / doc["wiki_path"] if doc["wiki_path"] else None
                 if not wiki_path or not wiki_path.exists():
@@ -193,23 +258,56 @@ def sync_anythingllm(cfg: Dict[str, Any], sync_users: bool = True) -> Dict[str, 
                 result["uploaded"] += 1
                 ref = _extract_uploaded_ref(uploaded, f"custom-documents/{wiki_path.name}")
                 doc_ref_by_id[int(doc["id"])] = ref
+                mark_document_uploaded(conn, int(doc["id"]), ref)
+                log_sync(conn, doc["title"], "upload_document", "ok", ref)
             except Exception as exc:
-                result["errors"].append(f"upload {doc['title']}: {exc}")
+                msg = f"upload {doc['title']}: {exc}"
+                result["errors"].append(msg)
+                log_sync(conn, doc["title"], "upload_document", "error", str(exc))
 
         slug_by_dept = {d["name"]: d["slug"] for d in depts}
         for dept_name, slug in slug_by_dept.items():
-            adds: List[str] = []
+            desired_pairs: List[Tuple[int, str]] = []
             for doc in docs:
-                if int(doc["id"]) not in doc_ref_by_id:
+                doc_id = int(doc["id"])
+                if doc_id not in doc_ref_by_id:
                     continue
                 if doc["zone"] == "public" or doc["department"] == dept_name:
-                    adds.append(doc_ref_by_id[int(doc["id"])])
-            if not adds:
+                    desired_pairs.append((doc_id, doc_ref_by_id[doc_id]))
+
+            if not desired_pairs:
                 continue
+
+            adds = [ref for _, ref in desired_pairs]
+            if incremental:
+                try:
+                    details = client.workspace_details(slug)
+                    remote_refs = _remote_doc_refs(details)
+                    adds = [ref for ref in adds if ref not in remote_refs]
+                except Exception:
+                    # 详情接口不可用时，退化为全量 add；AnythingLLM 通常可幂等处理。
+                    pass
+
+            adds = _dedupe_preserve_order(adds)
+            if not adds:
+                result["skipped_embedded"] += len(desired_pairs)
+                for doc_id, ref in desired_pairs:
+                    mark_workspace_document(conn, slug, doc_id, ref)
+                    mark_document_synced(conn, doc_id)
+                continue
+
             try:
                 client.update_embeddings(slug, adds)
                 result["embedded"] += len(adds)
+                for doc_id, ref in desired_pairs:
+                    mark_workspace_document(conn, slug, doc_id, ref)
+                    mark_document_synced(conn, doc_id)
+                log_sync(conn, slug, "update_embeddings", "ok", ",".join(adds))
             except Exception as exc:
-                result["errors"].append(f"embed {dept_name}: {exc}")
+                msg = f"embed {dept_name}: {exc}"
+                result["errors"].append(msg)
+                log_sync(conn, slug, "update_embeddings", "error", str(exc))
+
+        conn.commit()
 
     return result

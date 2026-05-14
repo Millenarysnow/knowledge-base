@@ -163,6 +163,14 @@ python -m kb.cli sync-anythingllm
 python -m kb.cli sync-anythingllm --skip-users
 ```
 
+从 AnythingLLM 本地存储目录保守扫描用户上传文件并导入本地库：
+
+```bash
+python -m kb.cli sync-from-anythingllm --default-dept 信息技术部
+```
+
+> 该命令是兜底实现，会扫描 `data/anythingllm` 下常见文档文件；实机验证后可按 AnythingLLM API/目录结构继续增强。
+
 > AnythingLLM API 会随版本变化，如同步失败，请访问 `http://localhost:8301/api/docs` 核对接口。
 
 ## 7. 分类优先级
@@ -171,13 +179,13 @@ python -m kb.cli sync-anythingllm --skip-users
 元数据表分类 > 目录分类 > 文件名/内容关键词分类 > AI 分类 > 未分类
 ```
 
-当前 MVP 已实现：
+当前已实现：
 
 ```text
-元数据表分类 > 目录分类 > 文件名/内容关键词分类 > 未分类
+元数据表分类 > 目录分类 > 文件名/内容关键词分类 > AI 分类 > 未分类
 ```
 
-AI 分类后续接 Ollama。
+AI 分类通过 Ollama 兜底执行；如果 Ollama 不可用，则自动退化为“未分类”。
 
 ## 8. 权限模型
 

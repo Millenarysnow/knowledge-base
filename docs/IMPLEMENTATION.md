@@ -274,7 +274,7 @@ type,dept_name,username,password,role
 分类优先级：
 
 ```text
-元数据表分类 > 目录分类 > 文件名/内容关键词分类 > 未分类
+元数据表分类 > 目录分类 > 文件名/内容关键词分类 > AI 分类 > 未分类
 ```
 
 ### 2.5.8 `kb/site_builder.py`
@@ -486,7 +486,20 @@ install.sh
 
 ---
 
-## 2.9 测试
+## 2.9 新增后续能力
+
+本阶段继续补充：
+
+- `kb/ollama.py`：封装 Ollama chat 和可用性检测。
+- `kb/import_docs.py`：接入 Ollama AI 分类兜底。
+- `kb/sync_from_anythingllm.py`：保守扫描 AnythingLLM 本地存储目录，将用户上传文件导入本地知识库。
+- `kb/anythingllm.py`：增加同步状态落库、workspace 详情检查、增量 embedding 逻辑。
+- `kb/db.py`：新增 `anythingllm_documents`、`workspace_documents` 同步状态表。
+- `tests/test_smoke.py`：增加 kb-web 权限和 sync-from-anythingllm 冒烟测试。
+
+---
+
+## 2.10 测试
 
 ### 文件
 

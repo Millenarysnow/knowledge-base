@@ -62,6 +62,23 @@ CREATE TABLE IF NOT EXISTS sign_records (
 
 CREATE INDEX IF NOT EXISTS idx_sign_records_item_id ON sign_records(item_id);
 
+CREATE TABLE IF NOT EXISTS anythingllm_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id INTEGER NOT NULL,
+    ref TEXT NOT NULL,
+    uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(document_id, ref)
+);
+
+CREATE TABLE IF NOT EXISTS workspace_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_slug TEXT NOT NULL,
+    document_id INTEGER NOT NULL,
+    doc_ref TEXT NOT NULL,
+    synced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(workspace_slug, document_id)
+);
+
 CREATE TABLE IF NOT EXISTS sync_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     target TEXT NOT NULL,
@@ -71,6 +88,11 @@ CREATE TABLE IF NOT EXISTS sync_log (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 """
+
+MIGRATIONS = [
+    "CREATE TABLE IF NOT EXISTS anythingllm_documents (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, ref TEXT NOT NULL, uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(document_id, ref))",
+    "CREATE TABLE IF NOT EXISTS workspace_documents (id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_slug TEXT NOT NULL, document_id INTEGER NOT NULL, doc_ref TEXT NOT NULL, synced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(workspace_slug, document_id))",
+]
 
 
 def connect(cfg: Dict[str, Any]) -> sqlite3.Connection:
@@ -85,6 +107,8 @@ def connect(cfg: Dict[str, Any]) -> sqlite3.Connection:
 def init_db(cfg: Dict[str, Any]) -> None:
     with connect(cfg) as conn:
         conn.executescript(SCHEMA)
+        for sql in MIGRATIONS:
+            conn.execute(sql)
         conn.commit()
 
 
@@ -175,6 +199,43 @@ def upsert_document(conn: sqlite3.Connection, doc: Dict[str, Any]) -> int:
     )
     row = conn.execute("SELECT id FROM documents WHERE stored_path=?", (doc.get("stored_path"),)).fetchone()
     return int(row["id"])
+
+
+def mark_document_uploaded(conn: sqlite3.Connection, document_id: int, ref: str) -> None:
+    conn.execute(
+        """
+        INSERT INTO anythingllm_documents(document_id, ref)
+        VALUES (?, ?)
+        ON CONFLICT(document_id, ref) DO UPDATE SET uploaded_at=CURRENT_TIMESTAMP
+        """,
+        (document_id, ref),
+    )
+    conn.execute(
+        "UPDATE documents SET anythingllm_doc_name=? WHERE id=?",
+        (ref, document_id),
+    )
+
+
+def mark_workspace_document(conn: sqlite3.Connection, workspace_slug: str, document_id: int, doc_ref: str) -> None:
+    conn.execute(
+        """
+        INSERT INTO workspace_documents(workspace_slug, document_id, doc_ref)
+        VALUES (?, ?, ?)
+        ON CONFLICT(workspace_slug, document_id) DO UPDATE SET doc_ref=excluded.doc_ref, synced_at=CURRENT_TIMESTAMP
+        """,
+        (workspace_slug, document_id, doc_ref),
+    )
+
+
+def mark_document_synced(conn: sqlite3.Connection, document_id: int) -> None:
+    conn.execute("UPDATE documents SET synced_to_anythingllm=1 WHERE id=?", (document_id,))
+
+
+def log_sync(conn: sqlite3.Connection, target: str, action: str, status: str, message: str | None = None) -> None:
+    conn.execute(
+        "INSERT INTO sync_log(target, action, status, message) VALUES (?, ?, ?, ?)",
+        (target, action, status, message),
+    )
 
 
 def list_departments(conn: sqlite3.Connection):

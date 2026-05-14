@@ -78,19 +78,35 @@ def cmd_sync_anythingllm(args) -> None:
     init_db(cfg)
     from .anythingllm import sync_anythingllm
 
-    res = sync_anythingllm(cfg, sync_users=not args.skip_users)
+    res = sync_anythingllm(cfg, sync_users=not args.skip_users, incremental=not args.full)
     _print_result(res)
     if res.get("errors"):
         print("⚠️ 同步出现错误。请打开 AnythingLLM 实例的 /api/docs 核对 API 版本。")
+
+
+def cmd_sync_from_anythingllm(args) -> None:
+    cfg = load_config(args.config)
+    ensure_dirs(cfg)
+    init_db(cfg)
+    from .sync_from_anythingllm import sync_from_anythingllm
+
+    res = sync_from_anythingllm(cfg, storage=args.storage, default_dept=args.default_dept)
+    _print_result(res)
 
 
 def cmd_update(args) -> None:
     cfg = load_config(args.config)
     ensure_dirs(cfg)
     init_db(cfg)
+    if args.sync_from_anythingllm:
+        from .sync_from_anythingllm import sync_from_anythingllm
+
+        sync_res = sync_from_anythingllm(cfg, storage=args.storage, default_dept=args.default_dept)
+        print("AnythingLLM 反向同步结果：")
+        _print_result(sync_res)
     res = build_site(cfg)
     print(f"✅ update 完成：已重建站点，文档 {res['documents']} 个")
-    print("ℹ️ 如需同步 AnythingLLM，请执行 sync-anythingllm。")
+    print("ℹ️ 如需同步到 AnythingLLM，请执行 sync-anythingllm。")
 
 
 def cmd_status(args) -> None:
@@ -136,9 +152,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = sub.add_parser("sync-anythingllm", help="同步工作区、用户和文档到 AnythingLLM")
     sp.add_argument("--skip-users", action="store_true", help="只同步 workspace 和文档，不创建/分配用户")
+    sp.add_argument("--full", action="store_true", help="强制全量上传和嵌入，不使用本地同步状态")
     sp.set_defaults(func=cmd_sync_anythingllm)
 
-    sp = sub.add_parser("update", help="增量更新：当前重建站点")
+    sp = sub.add_parser("sync-from-anythingllm", help="从 AnythingLLM 本地存储目录扫描用户上传文件并导入")
+    sp.add_argument("--storage", help="AnythingLLM storage 目录，默认 data/anythingllm")
+    sp.add_argument("--default-dept", help="无法从路径识别部门时使用的默认部门")
+    sp.set_defaults(func=cmd_sync_from_anythingllm)
+
+    sp = sub.add_parser("update", help="增量更新：可选反向同步 AnythingLLM 后重建站点")
+    sp.add_argument("--sync-from-anythingllm", action="store_true", help="先扫描 AnythingLLM 本地存储目录导入用户上传文件")
+    sp.add_argument("--storage", help="AnythingLLM storage 目录，默认 data/anythingllm")
+    sp.add_argument("--default-dept", help="反向同步时无法识别部门的默认部门")
     sp.set_defaults(func=cmd_update)
 
     sp = sub.add_parser("status", help="查看状态")

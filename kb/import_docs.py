@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import json
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -9,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from .config import category_keys, normalize_category, project_path
 from .db import connect, insert_sign_record, sign_records_for_item, upsert_document
 from .parser import SUPPORTED_EXT, parse_file
+from .ollama import ollama_available, ollama_chat
 from .util import (
     copy_file,
     file_sha256,
@@ -111,6 +113,42 @@ def infer_category_by_keywords(cfg: Dict[str, Any], file_path: Path, text_previe
             best_score = score
             best_key = key
     return best_key if best_score > 0 else None
+
+
+def infer_category_by_ai(cfg: Dict[str, Any], title: str, text_preview: str) -> Optional[str]:
+    """使用 Ollama 做兜底分类。失败时返回 None。"""
+    models = cfg.get("models", {}) or {}
+    base_url = os.environ.get("OLLAMA_BASE_URL", models.get("ollama_base_url", "http://localhost:11434"))
+    model = os.environ.get("OLLAMA_MODEL", models.get("chat_model", "qwen2.5:7b"))
+    if not ollama_available(base_url):
+        return None
+    cats = [c.get("key") for c in cfg.get("categories", []) or [] if c.get("key")]
+    if not cats:
+        return None
+    prompt = f"""请判断文档属于哪个分类，只能从以下分类中选择一个：{', '.join(cats)}。
+
+请只返回严格 JSON，例如：{{"category":"行政","reason":"简短理由"}}
+
+文档标题：{title}
+文档内容前 2000 字：
+{text_preview[:2000]}
+"""
+    try:
+        result = ollama_chat(
+            base_url,
+            model,
+            prompt,
+            system="你是中文企业文档分类助手，只返回 JSON，不输出多余内容。",
+            timeout=120,
+        )
+        m = re.search(r"\{.*?\}", result, re.DOTALL)
+        if not m:
+            return None
+        data = json.loads(m.group(0))
+        cat = str(data.get("category", "")).strip()
+        return normalize_category(cfg, cat) if cat in cats else None
+    except Exception:
+        return None
 
 
 def find_source_files(source: Path) -> List[Path]:
@@ -235,7 +273,7 @@ def import_docs(
                 doc_number = first_value(meta, META_DOC_NUMBER)
                 serial_number = first_value(meta, META_SERIAL)
 
-                # 分类优先级：元数据表 > 目录分类 > 文件名/内容关键词。
+                # 分类优先级：元数据表 > 目录分类 > 文件名/内容关键词 > AI 分类 > 未分类。
                 category = normalize_category(cfg, first_value(meta, META_CATEGORY))
                 if not category:
                     category = infer_category_from_dir(cfg, source_root, f)
@@ -244,6 +282,8 @@ def import_docs(
                 body = parse_file(f)
                 if not category:
                     category = infer_category_by_keywords(cfg, f, body)
+                if not category:
+                    category = infer_category_by_ai(cfg, title, body)
                 if not category:
                     category = "未分类"
 
