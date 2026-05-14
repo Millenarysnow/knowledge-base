@@ -98,10 +98,12 @@ http://localhost:8301
 
 在 AnythingLLM 管理页面中创建 API Key。
 
-然后写入本地 `.env`（不要提交真实 API Key）：
+先测Linux
+
+然后写入 `.env`：
 
 ```bash
-ANYTHINGLLM_API_KEY=ANLLM-xxxx
+ANYTHINGLLM_API_KEY=3WQYGVA-90P46DK-N453FQJ-RMKWSR4
 ```
 
 Windows CMD 临时设置：
@@ -113,7 +115,7 @@ set ANYTHINGLLM_API_KEY=ANLLM-xxxx
 Linux/macOS 临时设置：
 
 ```bash
-export ANYTHINGLLM_API_KEY=ANLLM-xxxx
+export ANYTHINGLLM_API_KEY=3WQYGVA-90P46DK-N453FQJ-RMKWSR4
 ```
 
 #### 5. 初始化本地库
