@@ -98,9 +98,9 @@ http://localhost:8301
 
 在 AnythingLLM 管理页面中创建 API Key。
 
-先测Linux
+当前开发测试环境的 Key 已放入根目录 `.env`，也备份在 `docs/LOCAL_SECRETS.md`，方便恢复。
 
-然后写入 `.env`：
+如果重新生成 Key，需要写入 `.env`：
 
 ```bash
 ANYTHINGLLM_API_KEY=3WQYGVA-90P46DK-N453FQJ-RMKWSR4
