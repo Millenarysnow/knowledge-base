@@ -118,7 +118,7 @@ python -m kb.cli build-site
 data/site
 ```
 
-Nginx 会挂载该目录。
+`kb-web` 会提供权限浏览入口；旧的静态站点输出仍可用于排查生成结果。
 
 ## 8. 配置 AnythingLLM API Key
 
@@ -217,5 +217,18 @@ set PYTHONIOENCODING=utf-8
 
 ### 12.4 用户通过 AnythingLLM 上传的文件没有出现在结构化站点
 
-这是后续需要实现的能力：从 AnythingLLM 存储目录/API 反向同步用户上传文件。
+先执行兜底扫描：
+
+```bash
+python -m kb.cli sync-from-anythingllm --default-dept 信息技术部
+python -m kb.cli build-site
+```
+
+如果仍然没有，检查 AnythingLLM 实际存储结构：
+
+```bash
+find data/anythingllm -maxdepth 5 -type f | head -100
+```
+
+然后根据实际结构调整 `kb/sync_from_anythingllm.py`。
 当前 MVP 主要支持管理员批量导入。

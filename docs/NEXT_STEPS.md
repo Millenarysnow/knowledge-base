@@ -1,12 +1,12 @@
 # 后续开发计划
 
-> 本文档回答：**接下来怎么做**。
-> 当前分支：`feature/Claude优化`
-> 当前基础提交：`2bc3d19 重构智能知识库基础架构`
+> 本文档回答：**开发者接下来怎么继续开发**。
+> 如果你是要在 Linux 上一步步验证当前项目，请优先看：`docs/HANDOFF_STEPS.md`。
+> 如果你想先了解项目当前完成度，请看：`docs/PROGRESS.md`。
 
 ## 1. 当前状态概览
 
-项目已经完成第一轮架构重构，当前已经具备：
+项目已经完成本地知识库 MVP 的主要代码框架，当前具备：
 
 - Python CLI 管理工具 `kbctl`。
 - SQLite 本地数据模型。
@@ -16,18 +16,20 @@
 - 签阅记录表导入。
 - 事项 ID 一对多文档关联。
 - 文档解析与结构化 Markdown 生成。
-- 静态结构化浏览站点生成。
-- AnythingLLM API 对接骨架。
+- 结构化浏览与权限下载服务 `kb-web`。
+- AnythingLLM API 对接骨架和增量同步状态。
+- AnythingLLM 用户上传文件反向同步兜底。
+- Ollama AI 分类兜底。
 - Docker Compose 新架构。
 - 冒烟测试。
 
-但还有三块核心工作需要继续推进：
+仍需继续推进：
 
 1. **AnythingLLM 实机 API 对接验证**。
-2. **结构化浏览权限控制**。
-3. **AnythingLLM 用户上传文件后的反向同步**。
-
-这三块完成后，项目才算进入可交付 MVP。
+2. **kb-web 在真实 AnythingLLM 登录下的验证**。
+3. **AnythingLLM 用户上传文件后的精确同步**。
+4. **来源链接从 AnythingLLM citation 跳到 kb-web 文档页**。
+5. **OCR / 高级图谱 / 去重 / doctor 诊断命令等增强**。
 
 ---
 
@@ -48,7 +50,7 @@
 
 ### 为什么必须先做
 
-AnythingLLM 的 API 版本变化较多，文档里也明确说明应以实例上的：
+AnythingLLM 的 API 版本变化较多，实际接口必须以实例上的：
 
 ```text
 http://localhost:8301/api/docs
@@ -65,120 +67,21 @@ http://localhost:8301/api/docs
 
 ### 执行步骤
 
-#### 1. 启动服务
+详见：
+
+```text
+docs/HANDOFF_STEPS.md
+```
+
+最短验证命令：
 
 ```bash
 docker compose up -d
-```
-
-#### 2. 查看容器状态
-
-```bash
-docker ps
-```
-
-确认至少有：
-
-```text
-kb-ollama
-kb-anythingllm
-kb-worker
-kb-nginx
-```
-
-#### 3. 打开 AnythingLLM
-
-```text
-http://localhost:8301
-```
-
-完成首次初始化。
-
-#### 4. 创建 AnythingLLM API Key
-
-在 AnythingLLM 管理页面中创建 API Key。
-
-当前开发测试环境的 Key 已放入根目录 `.env`，也备份在 `docs/LOCAL_SECRETS.md`，方便恢复。
-
-如果重新生成 Key，需要写入 `.env`：
-
-```bash
-ANYTHINGLLM_API_KEY=3WQYGVA-90P46DK-N453FQJ-RMKWSR4
-```
-
-Windows CMD 临时设置：
-
-```cmd
-set ANYTHINGLLM_API_KEY=ANLLM-xxxx
-```
-
-Linux/macOS 临时设置：
-
-```bash
-export ANYTHINGLLM_API_KEY=3WQYGVA-90P46DK-N453FQJ-RMKWSR4
-```
-
-#### 5. 初始化本地库
-
-```bash
 python -m kb.cli init
-```
-
-#### 6. 导入用户
-
-```bash
 python -m kb.cli import-users users.csv
-```
-
-#### 7. 准备一组测试文档
-
-建议构造：
-
-```text
-input/
-├── files/
-│   └── 2026/05/12/7acf3850-4b7a-11f1-8da1-fa163e4c1d80.pdf
-├── file_meta.csv
-└── sign.csv
-```
-
-#### 8. 导入测试文档
-
-```bash
-python -m kb.cli import-docs \
-  --zone public \
-  --source ./input/files \
-  --metadata ./input/file_meta.csv \
-  --sign-records ./input/sign.csv
-```
-
-#### 9. 同步 AnythingLLM
-
-```bash
-python -m kb.cli sync-anythingllm
-```
-
-如果用户同步接口失败，可先跳过用户，只验证 workspace + 文档：
-
-```bash
+python -m kb.cli import-docs --zone public --source ./input/files --metadata ./input/file_meta.csv --sign-records ./input/sign.csv
 python -m kb.cli sync-anythingllm --skip-users
 ```
-
-#### 10. 核对 AnythingLLM 中的 workspace 和文档
-
-打开：
-
-```text
-http://localhost:8301
-```
-
-检查：
-
-- 是否存在信息技术部、办公室、研究室对应 workspace。
-- 公共文档是否被加入所有部门 workspace。
-- 部门文档是否只在对应部门 workspace。
-- 用户是否可以登录。
-- 用户是否只看到自己部门 workspace。
 
 ### 成功标准
 
@@ -208,45 +111,13 @@ kb/anythingllm.py
 
 ---
 
-## 阶段 B：完善结构化浏览权限控制
+## 阶段 B：实机验证 kb-web 权限浏览
 
-### 目标
+### 当前状态
 
-你已经确认：
+当前已新增 `kb.web` 权限浏览服务，并在 `docker-compose.yml` 中用 `kb-web` 提供 `:80` 入口。
 
-```text
-普通用户只能浏览公共区 + 本部门；管理员可以浏览全部。
-```
-
-当前已新增 `kb.web` 权限浏览服务，并在 `docker-compose.yml` 中用 `kb-web` 提供 `:80` 入口。后续需要实机验证和继续完善。
-
-### 建议方案
-
-当前已经新增 `kb.web` 权限浏览服务，并在 `docker-compose.yml` 中用 `kb-web` 提供 `:80` 入口。后续需要实机验证和继续完善。
-
-### 认证方式
-
-认证源仍然使用 AnythingLLM：
-
-```text
-POST /api/request-token
-```
-
-用户在 KB Web 登录页输入 AnythingLLM 账号密码。KB Web 调 AnythingLLM 校验，如果成功，再在本地 `users` 表查：
-
-- 用户所属部门。
-- 用户角色。
-
-### 授权规则
-
-```python
-if role == "admin":
-    allow_all()
-else:
-    allow(doc.zone == "public" or doc.department == user.department)
-```
-
-### 已实现的路由
+已实现路由：
 
 ```text
 GET  /login
@@ -260,15 +131,34 @@ GET  /graph
 GET  /health
 ```
 
-### 文件下载权限
+### 认证方式
 
-不能再用 Nginx 直接暴露：
+认证源优先使用 AnythingLLM：
 
 ```text
-/files/...
+POST /api/request-token
 ```
 
-否则用户可以猜路径下载其他部门文件。
+开发环境允许兜底：
+
+```bash
+KB_WEB_ALLOW_LOCAL_AUTH=1
+```
+
+即 AnythingLLM 不可用时，可以使用本地 `users` 表密码登录，方便开发测试。
+
+### 授权规则
+
+```python
+if role == "admin":
+    allow_all()
+else:
+    allow(doc.zone == "public" or doc.department == user.department)
+```
+
+### 文件下载权限
+
+不能直接暴露 `data/documents`。
 
 下载必须走：
 
@@ -278,20 +168,6 @@ GET /files/{doc_id}
 
 由 Web 服务检查权限后再返回文件。
 
-### Docker Compose 调整
-
-当前已调整为：
-
-```text
-kb-web :80
-```
-
-不再由 Nginx 直接暴露 `data/documents`。如果后续仍需要 Nginx，可改为：
-
-```text
-nginx :80 -> reverse_proxy -> kb-web :8000
-```
-
 ### 成功标准
 
 - [ ] 未登录用户无法访问文档列表。
@@ -299,6 +175,7 @@ nginx :80 -> reverse_proxy -> kb-web :8000
 - [ ] 普通用户无法通过 URL 下载其他部门文件。
 - [ ] 管理员可以看到全部。
 - [ ] 登录认证使用 AnythingLLM 账号密码。
+- [ ] AnythingLLM 不可用时，本地兜底登录可用于开发测试。
 
 ---
 
@@ -306,7 +183,7 @@ nginx :80 -> reverse_proxy -> kb-web :8000
 
 ### 背景
 
-你确认：
+需求确认：
 
 ```text
 用户上传文件只能通过 AnythingLLM 界面。
@@ -316,9 +193,9 @@ nginx :80 -> reverse_proxy -> kb-web :8000
 
 但是结构化浏览站点和本地文档库需要知道这些文件，因此需要从 AnythingLLM 反向同步。
 
-### 目标
+### 当前状态
 
-实现命令：
+已实现兜底命令：
 
 ```bash
 python -m kb.cli sync-from-anythingllm
@@ -326,57 +203,30 @@ python -m kb.cli sync-from-anythingllm
 
 功能：
 
-1. 读取 AnythingLLM 中各 workspace 的文档列表。
-2. 判断文档属于哪个部门 workspace。
-3. 将用户上传文档同步到：
+- 默认扫描 `data/anythingllm`。
+- 查找常见文档格式：PDF/DOCX/DOC/WPS/OFD/MD/TXT。
+- 尝试从路径中识别部门名或 workspace slug。
+- 识别不到时可用 `--default-dept` 指定。
+- 复用 `import-docs` 导入本地知识库。
 
-```text
-data/documents/dept-部门/YYYY/MM/DD/分类/文件
+示例：
+
+```bash
+python -m kb.cli sync-from-anythingllm --default-dept 信息技术部
 ```
 
-4. 解析正文。
-5. 生成结构化 Markdown。
-6. 更新 SQLite。
-7. 重建结构化浏览站点。
+### 后续需要验证
 
-### 可选实现方式
+实机观察：
 
-#### 方式 1：通过 AnythingLLM API
-
-如果 `/api/docs` 提供 workspace 文档列表和下载接口，则优先用 API。
-
-优点：
-
-- 稳定。
-- 不依赖内部存储目录。
-
-缺点：
-
-- 需要实机确认 API 是否足够。
-
-#### 方式 2：扫描 AnythingLLM 存储目录
-
-AnythingLLM 容器存储挂载在：
-
-```text
-data/anythingllm
+```bash
+find data/anythingllm -maxdepth 5 -type f | head -100
 ```
 
-可以研究其文档缓存目录，扫描新增文件。
+根据真实目录结构决定：
 
-优点：
-
-- 不依赖 API。
-
-缺点：
-
-- 目录结构可能随版本变化。
-- 需要识别 workspace 归属。
-
-### 推荐顺序
-
-1. 先看 `/api/docs` 是否有可用接口。
-2. 如果 API 不够，再研究存储目录。
+1. 继续优化目录扫描。
+2. 或改为 AnythingLLM API 精确同步。
 
 ### 成功标准
 
@@ -387,44 +237,38 @@ data/anythingllm
 
 ---
 
-## 阶段 D：AI 分类兜底
+## 阶段 D：来源跳转打通
 
 ### 当前状态
 
-已经实现：
-
-```text
-元数据表分类 > 目录分类 > 文件名/内容关键词分类 > 未分类
-```
-
-还没有实现 AI 分类。
+kb-web 文档详情和下载已实现，但 AnythingLLM 回答中的 citation 来源还没有跳转到 kb-web 文档页。
 
 ### 目标
 
-接入 Ollama 作为兜底分类：
+让 AnythingLLM 回答来源能关联到：
 
 ```text
-文件名/内容关键词无法分类时 -> 调 Ollama 判断分类
+http://localhost/docs/{doc_id}
 ```
 
-### 推荐 Prompt
+或：
 
 ```text
-你是一个文档分类助手。请从以下分类中选择最合适的一类：行政、技术、会议、报告。
-只返回 JSON：{"category":"行政","reason":"..."}
+http://localhost/files/{doc_id}
 ```
 
-### 注意
+### 可能方案
 
-AI 分类只能作为兜底，不能覆盖元数据表分类。
+1. 在上传到 AnythingLLM 的 Markdown 中写入 kb-web 链接。
+2. 在 Markdown frontmatter 或正文中包含 `doc_id` 和 `source_url`。
+3. 如果 AnythingLLM 支持 metadata，则上传时携带文档 URL。
+4. 如果 AnythingLLM citation 只显示文档名，则保证文档标题可在 kb-web 中搜索定位。
 
 ### 成功标准
 
-- [ ] 元数据表有分类时不调用 AI。
-- [ ] 目录有分类时不调用 AI。
-- [ ] 关键词能分类时不调用 AI。
-- [ ] 只有前三者失败时才调用 AI。
-- [ ] AI 分类结果写入 documents 表和 wiki Markdown。
+- [ ] AnythingLLM 回答来源能对应到 kb-web 文档详情。
+- [ ] 用户能从来源下载原文件。
+- [ ] 权限仍由 kb-web 控制。
 
 ---
 
@@ -456,11 +300,11 @@ MVP 后优先尝试 PaddleOCR，中文效果更好。
 
 ---
 
-## 阶段 F：增量更新与缓存
+## 阶段 F：增量更新、去重与缓存
 
 ### 当前问题
 
-每次导入和解析大批文档时，可能重复解析。
+每次导入和解析大批文档时，可能重复解析；签阅记录重复导入也可能重复插入。
 
 ### 目标
 
@@ -469,12 +313,46 @@ MVP 后优先尝试 PaddleOCR，中文效果更好。
 - 文件未变化：跳过解析。
 - 元数据变化：只更新 Markdown。
 - 签阅记录变化：只更新 Markdown 和 AnythingLLM embedding。
+- 签阅记录重复导入时不产生重复记录。
 
 ### 成功标准
 
 - [ ] 重复导入相同文件不会重复处理。
 - [ ] 修改签阅表后能更新对应文档。
 - [ ] 同步 AnythingLLM 时只同步变化文档。
+- [ ] 签阅记录不重复。
+
+---
+
+## 阶段 G：doctor 诊断命令
+
+### 目标
+
+新增：
+
+```bash
+python -m kb.cli doctor
+```
+
+用于快速诊断环境。
+
+### 检查项
+
+- 配置文件是否存在。
+- SQLite 是否可用。
+- 默认部门是否存在。
+- `.env` 是否有 API Key。
+- Ollama 是否可访问。
+- AnythingLLM 是否可访问。
+- `docker-compose.yml` 是否存在。
+- 当前文档数量。
+- 当前用户数量。
+- AnythingLLM `/api/docs` 是否可访问。
+
+### 成功标准
+
+- [ ] 输出清晰的成功/失败检查项。
+- [ ] 遇到失败给出下一步建议。
 
 ---
 
@@ -483,26 +361,30 @@ MVP 后优先尝试 PaddleOCR，中文效果更好。
 最推荐的顺序：
 
 ```text
-1. 跑 Docker，实机验证 AnythingLLM API
-2. 修正 kb/anythingllm.py
+1. 按 docs/HANDOFF_STEPS.md 跑 Docker 实机验证
+2. 修正 kb/anythingllm.py 的 API 适配
 3. 实机验证 kb-web 权限浏览
-4. 实现 sync-from-anythingllm
-5. 接入 Ollama AI 分类
-6. 增加 OCR
-7. 增量缓存和稳定性优化
+4. 观察 data/anythingllm，完善 sync-from-anythingllm
+5. 打通 AnythingLLM citation 到 kb-web 文档页
+6. 增加 doctor 诊断命令
+7. 增加签阅记录去重和增量缓存
+8. 增加 OCR
+9. 增强知识图谱可视化
 ```
 
 ---
 
-## 4. 下一次开发建议拆分 commit
+## 4. 建议后续 commit 拆分
 
 建议不要一个 commit 做完所有内容，后续按以下 commit 拆：
 
 ```text
 1. 修正 AnythingLLM API 同步
-2. 完善并验证基于 AnythingLLM 的权限浏览服务
-3. 支持 AnythingLLM 上传文件反向同步
-4. 增加 Ollama AI 分类兜底
-5. 增加 OCR 支持
-6. 增加增量缓存和稳定性优化
+2. 验证并完善 kb-web 权限浏览
+3. 支持 AnythingLLM 上传文件精确反向同步
+4. 打通 AnythingLLM 来源链接到 kb-web
+5. 增加 doctor 诊断命令
+6. 增加签阅记录去重和增量缓存
+7. 增加 OCR 支持
+8. 增强知识图谱可视化
 ```

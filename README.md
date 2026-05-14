@@ -26,8 +26,8 @@ AnythingLLM
 KB Worker / kbctl
   批量导入 / 元数据绑定 / 签阅记录绑定 / 文档解析 / 站点生成 / AnythingLLM 同步
 
-Nginx
-  结构化浏览站点 / 原文件下载
+kb-web
+  权限浏览 / 文档详情 / 原文件下载
 ```
 
 ## 2. 快速开始
@@ -58,7 +58,7 @@ python -m kb.cli status
 ### 2.3 启动 Docker 服务
 
 ```bash
-docker compose -f docker-compose.v2.yml up -d
+docker compose up -d
 ```
 
 访问：
@@ -205,8 +205,11 @@ python tests/test_smoke.py
 ## 10. 文档
 
 - [重构计划](docs/REBUILD_PLAN.md)
+- [当前进度总览](docs/PROGRESS.md)
+- [交接执行手册](docs/HANDOFF_STEPS.md)
 - [技术设计](docs/DESIGN.md)
 - [运维手册](docs/OPERATIONS.md)
 - [后续开发计划](docs/NEXT_STEPS.md)
 - [已开发内容说明](docs/IMPLEMENTATION.md)
 - [重构思路说明](docs/ARCHITECTURE_THINKING.md)
+- [本地测试敏感配置备份](docs/LOCAL_SECRETS.md)
