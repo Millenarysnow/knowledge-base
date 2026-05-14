@@ -1,0 +1,20 @@
+1. 将docker-compose.yml中的kb-web的端口改为8081
+2. **删除此项目不需要的文件**
+3. 在.env文件中设置ANYTHINGLLM_API_KEY后，使用python3 -m kb.cli sync-anythingllm，报错❌ 未设置 AnythingLLM API_KEY
+4. 对于.env文件存在的疑惑，与config/config.yaml文件的一同
+5. 解决这个报错，export ANYTHINGLLM_API_KEY=1D6V048-0Z5MS47-J832JAJ-YMF22GZ && python3 -m kb.cli sync-anythingllm
+{
+  "workspaces": 0,
+  "users": 0,
+  "uploaded": 0,
+  "embedded": 0,
+  "skipped_embedded": 0,
+  "errors": [
+    "workspace 信息技术部: http://anythingllm:3001/api/v1/workspace/new: HTTPConnectionPool(host='anythingllm', port=3001): Max retries exceeded with url: /api/v1/workspace/new (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f921b0b3b60>: Failed to resolve 'anythingllm' ([Errno -3] Temporary failure in name resolution)\")); http://anythingllm:3001/api/workspace/new: HTTPConnectionPool(host='anythingllm', port=3001): Max retries exceeded with url: /api/workspace/new (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f921b0b1af0>: Failed to resolve 'anythingllm' ([Errno -3] Temporary failure in name resolution)\"))",
+    "workspace 办公室: http://anythingllm:3001/api/v1/workspace/new: HTTPConnectionPool(host='anythingllm', port=3001): Max retries exceeded with url: /api/v1/workspace/new (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f921b0cc560>: Failed to resolve 'anythingllm' ([Errno -3] Temporary failure in name resolution)\")); http://anythingllm:3001/api/workspace/new: HTTPConnectionPool(host='anythingllm', port=3001): Max retries exceeded with url: /api/workspace/new (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f921b0ccad0>: Failed to resolve 'anythingllm' ([Errno -3] Temporary failure in name resolution)\"))",
+    "workspace 研究室: http://anythingllm:3001/api/v1/workspace/new: HTTPConnectionPool(host='anythingllm', port=3001): Max retries exceeded with url: /api/v1/workspace/new (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f921b0cd610>: Failed to resolve 'anythingllm' ([Errno -3] Temporary failure in name resolution)\")); http://anythingllm:3001/api/workspace/new: HTTPConnectionPool(host='anythingllm', port=3001): Max retries exceeded with url: /api/workspace/new (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f921b0b3680>: Failed to resolve 'anythingllm' ([Errno -3] Temporary failure in name resolution)\"))",
+    "user admin: http://anythingllm:3001/api/v1/admin/users/new: HTTPConnectionPool(host='anythingllm', port=3001): Max retries exceeded with url: /api/v1/admin/users/new (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f921b0cd9a0>: Failed to resolve 'anythingllm' ([Errno -3] Temporary failure in name resolution)\")); http://anythingllm:3001/api/admin/users/new: HTTPConnectionPool(host='anythingllm', port=3001): Max retries exceeded with url: /api/admin/users/new (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f921b0cca70>: Failed to resolve 'anythingllm' ([Errno -3] Temporary failure in name resolution)\"))",
+    "upload 关于安全生产的通知: http://anythingllm:3001/api/v1/document/upload/kb: HTTPConnectionPool(host='anythingllm', port=3001): Max retries exceeded with url: /api/v1/document/upload/kb (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f921b0cc4d0>: Failed to resolve 'anythingllm' ([Errno -3] Temporary failure in name resolution)\")); http://anythingllm:3001/api/document/upload/kb: HTTPConnectionPool(host='anythingllm', port=3001): Max retries exceeded with url: /api/document/upload/kb (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f921b0cd490>: Failed to resolve 'anythingllm' ([Errno -3] Temporary failure in name resolution)\"))"
+  ]
+}
+⚠️ 同步出现错误。请打开 AnythingLLM 实例的 /api/docs 核对 API 版本。
