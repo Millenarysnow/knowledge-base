@@ -339,7 +339,38 @@ POST /api/request-token
 GET /api/system/check-token
 ```
 
-这是后续做结构化浏览权限控制时使用的基础模块。
+这是结构化浏览权限控制的认证基础模块。
+
+### 2.5.11 `kb/web.py`
+
+权限浏览服务。
+
+提供：
+
+```text
+/login
+/logout
+/
+/documents
+/docs/{id}
+/files/{id}
+/graph
+/health
+```
+
+认证方式：
+
+1. 优先调用 AnythingLLM `/api/request-token`。
+2. 开发环境如设置 `KB_WEB_ALLOW_LOCAL_AUTH=1`，允许本地 users 表密码兜底。
+
+授权规则：
+
+```text
+admin：可访问全部
+普通用户：公共区 + 本部门
+```
+
+文件下载通过 `/files/{id}`，会检查权限。
 
 ---
 

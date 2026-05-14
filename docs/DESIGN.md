@@ -236,28 +236,37 @@ http://localhost:8301/api/docs
 - 普通用户：公共区 + 本部门。
 - 管理员：全部。
 
-纯 Nginx 静态站点无法识别 AnythingLLM 登录用户，因此后续需要二选一：
+当前已引入轻量 Web 服务 `kb.web`：
 
-### 方案 A：轻量 KB Web
+- `GET /login`
+- `POST /login`
+- `GET /logout`
+- `GET /documents`
+- `GET /docs/{id}`
+- `GET /files/{id}`
+- `GET /graph`
 
-实现一个 FastAPI/Flask Web 服务：
+登录优先调用 AnythingLLM：
 
-- 使用 AnythingLLM `/api/request-token` 做登录代理。
-- 本地记录 username -> department/role。
-- 访问文档时按本地权限过滤。
-- 下载文件时也检查权限。
+```text
+POST /api/request-token
+```
 
-优点：实现可控。
-缺点：严格来说多了一个登录页，但认证源仍然是 AnythingLLM。
+本地 `users` 表只负责保存：
 
-### 方案 B：前置网关鉴权
+```text
+username -> department -> role
+```
 
-用 Nginx auth_request 或企业统一认证。
+开发环境可设置：
 
-优点：架构更规范。
-缺点：初期复杂。
+```text
+KB_WEB_ALLOW_LOCAL_AUTH=1
+```
 
-MVP 暂时生成静态站点，后续补 KB Web。
+这样 AnythingLLM 暂不可用时，可以用本地用户表密码兜底登录，便于调试。
+
+文件下载必须经过 `GET /files/{id}` 权限判断，不能直接暴露 `data/documents`。
 
 ## 11. 风险
 

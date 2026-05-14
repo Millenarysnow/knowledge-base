@@ -50,15 +50,23 @@ services:
     depends_on:
       - anythingllm
 
-  nginx:
-    image: nginx:alpine
-    container_name: kb-nginx
+  kb-web:
+    image: python:3.11-slim
+    container_name: kb-web
+    working_dir: /app
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "80:8000"
     volumes:
-      - ./data/site:/usr/share/nginx/html:ro
-      - ./data/documents:/usr/share/nginx/html/files:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./:/app
+    environment:
+      - ANYTHINGLLM_BASE_URL=http://anythingllm:3001
+      - ANYTHINGLLM_API_KEY=${ANYTHINGLLM_API_KEY:-}
+      # 开发兜底：AnythingLLM 不可用时允许使用本地 users 表密码登录。
+      # 生产交付前可改为 0。
+      - KB_WEB_ALLOW_LOCAL_AUTH=${KB_WEB_ALLOW_LOCAL_AUTH:-1}
+    command: >
+      bash -c "pip install --no-cache-dir -r requirements.txt && python -m kb.web --host 0.0.0.0 --port 8000"
     depends_on:
       - kb-worker
+      - anythingllm

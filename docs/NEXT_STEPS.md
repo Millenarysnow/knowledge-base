@@ -208,7 +208,7 @@ kb/anythingllm.py
 
 ---
 
-## 阶段 B：实现结构化浏览权限控制
+## 阶段 B：完善结构化浏览权限控制
 
 ### 目标
 
@@ -218,23 +218,11 @@ kb/anythingllm.py
 普通用户只能浏览公共区 + 本部门；管理员可以浏览全部。
 ```
 
-当前站点是静态 HTML，由 Nginx 直接托管。静态站点无法识别当前用户身份，所以不满足最终权限需求。
+当前已新增 `kb.web` 权限浏览服务，并在 `docker-compose.yml` 中用 `kb-web` 提供 `:80` 入口。后续需要实机验证和继续完善。
 
 ### 建议方案
 
-新增轻量 Web 服务：
-
-```text
-kb/web.py
-```
-
-或者：
-
-```text
-kb/web_app.py
-```
-
-推荐使用 FastAPI。
+当前已经新增 `kb.web` 权限浏览服务，并在 `docker-compose.yml` 中用 `kb-web` 提供 `:80` 入口。后续需要实机验证和继续完善。
 
 ### 认证方式
 
@@ -258,12 +246,12 @@ else:
     allow(doc.zone == "public" or doc.department == user.department)
 ```
 
-### 需要实现的路由
+### 已实现的路由
 
 ```text
 GET  /login
 POST /login
-POST /logout
+GET  /logout
 GET  /
 GET  /documents
 GET  /docs/{doc_id}
@@ -292,19 +280,13 @@ GET /files/{doc_id}
 
 ### Docker Compose 调整
 
-当前是：
-
-```text
-nginx -> data/site + data/documents
-```
-
-后续可改成：
+当前已调整为：
 
 ```text
 kb-web :80
 ```
 
-或者：
+不再由 Nginx 直接暴露 `data/documents`。如果后续仍需要 Nginx，可改为：
 
 ```text
 nginx :80 -> reverse_proxy -> kb-web :8000
@@ -503,12 +485,11 @@ MVP 后优先尝试 PaddleOCR，中文效果更好。
 ```text
 1. 跑 Docker，实机验证 AnythingLLM API
 2. 修正 kb/anythingllm.py
-3. 实现 kb-web 权限浏览服务
-4. 调整 docker-compose，将 :80 指向 kb-web
-5. 实现 sync-from-anythingllm
-6. 接入 Ollama AI 分类
-7. 增加 OCR
-8. 增量缓存和稳定性优化
+3. 实机验证 kb-web 权限浏览
+4. 实现 sync-from-anythingllm
+5. 接入 Ollama AI 分类
+6. 增加 OCR
+7. 增量缓存和稳定性优化
 ```
 
 ---
@@ -519,7 +500,7 @@ MVP 后优先尝试 PaddleOCR，中文效果更好。
 
 ```text
 1. 修正 AnythingLLM API 同步
-2. 增加基于 AnythingLLM 的权限浏览服务
+2. 完善并验证基于 AnythingLLM 的权限浏览服务
 3. 支持 AnythingLLM 上传文件反向同步
 4. 增加 Ollama AI 分类兜底
 5. 增加 OCR 支持

@@ -22,8 +22,10 @@ docker compose -f docker-compose.v2.yml up -d
 
 ```text
 AnythingLLM: http://localhost:8301
-结构化浏览: http://localhost
+权限浏览站点: http://localhost
 ```
+
+`http://localhost` 由 `kb-web` 提供权限控制。
 
 ## 3. 初始化
 
@@ -155,9 +157,31 @@ EMBEDDING_MODEL=bge-m3
 OLLAMA_MODEL=qwen2.5:1.5b
 ```
 
-## 10. 常见问题
+## 10. 结构化浏览权限
 
-### 10.1 Windows 控制台输出乱码
+浏览站点入口：
+
+```text
+http://localhost
+```
+
+登录方式：
+
+1. 优先调用 AnythingLLM `/api/request-token` 校验账号密码。
+2. 开发环境如设置 `KB_WEB_ALLOW_LOCAL_AUTH=1`，AnythingLLM 不可用时允许使用本地 `users` 表密码兜底。
+
+权限规则：
+
+```text
+admin：可访问全部文档
+普通用户：只能访问公共区 + 本部门文档
+```
+
+文件下载必须通过 `kb-web` 的 `/files/{doc_id}`，不要直接暴露 `data/documents`。
+
+## 11. 常见问题
+
+### 11.1 Windows 控制台输出乱码
 
 设置：
 
@@ -165,18 +189,18 @@ OLLAMA_MODEL=qwen2.5:1.5b
 set PYTHONIOENCODING=utf-8
 ```
 
-### 10.2 DOC/WPS/OFD 无法解析
+### 11.2 DOC/WPS/OFD 无法解析
 
 确认 LibreOffice 可用。
 
-### 10.3 AnythingLLM 同步失败
+### 11.3 AnythingLLM 同步失败
 
 1. 检查 API Key。
 2. 检查 AnythingLLM 地址。
 3. 打开 `/api/docs` 核对接口路径。
 4. 查看 `sync-anythingllm` 输出错误。
 
-### 10.4 用户通过 AnythingLLM 上传的文件没有出现在结构化站点
+### 11.4 用户通过 AnythingLLM 上传的文件没有出现在结构化站点
 
 这是后续需要实现的能力：从 AnythingLLM 存储目录/API 反向同步用户上传文件。
 当前 MVP 主要支持管理员批量导入。

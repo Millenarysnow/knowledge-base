@@ -65,8 +65,10 @@ docker compose -f docker-compose.v2.yml up -d
 
 ```text
 AnythingLLM: http://localhost:8301
-结构化浏览: http://localhost
+权限浏览站点: http://localhost
 ```
+
+`http://localhost` 现在由 `kb-web` 提供权限控制：普通用户只能看公共区 + 本部门，管理员可看全部。
 
 ## 3. 导入用户
 
@@ -182,7 +184,7 @@ AI 分类后续接 Ollama。
 - 普通用户：只能访问公共区 + 本部门。
 - 管理员：可访问全部。
 - 问答权限通过 AnythingLLM workspace 隔离。
-- 结构化浏览权限后续通过轻量 Web 服务或前置网关实现；当前 MVP 先生成静态站点。
+- 结构化浏览权限通过 `kb-web` 控制，登录时优先使用 AnythingLLM 账号密码；开发环境允许本地 users 表密码兜底。
 
 ## 9. 开发验证
 
