@@ -14,7 +14,45 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
 
 
+def _load_env_file(path: Path) -> None:
+    """加载 .env 到 os.environ。
+
+    python-dotenv 没有列入依赖，为了降低使用门槛，这里实现一个最小解析器。
+    规则：
+    - 空行和 # 注释跳过。
+    - KEY=VALUE。
+    - 不覆盖进程中已经设置的环境变量。
+    """
+    if not path.exists():
+        return
+    try:
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+    except UnicodeDecodeError:
+        for raw in path.read_text(encoding="gbk", errors="ignore").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+def load_dotenv() -> None:
+    _load_env_file(PROJECT_ROOT / ".env")
+
+
 def load_config(path: str | os.PathLike[str] | None = None) -> Dict[str, Any]:
+    load_dotenv()
     cfg_path = Path(path) if path else DEFAULT_CONFIG_PATH
     if not cfg_path.is_absolute():
         cfg_path = PROJECT_ROOT / cfg_path

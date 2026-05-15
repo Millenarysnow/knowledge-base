@@ -217,6 +217,18 @@ python -m kb.cli status
 - 研究室
 ```
 
+也可以运行诊断命令，快速检查配置、数据库、Ollama 和 AnythingLLM 连通性：
+
+```bash
+python -m kb.cli doctor
+```
+
+如果是在容器里：
+
+```bash
+docker exec -it kb-worker python -m kb.cli doctor
+```
+
 ---
 
 ## 6. 导入用户

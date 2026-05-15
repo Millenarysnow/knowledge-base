@@ -60,6 +60,9 @@ CREATE TABLE IF NOT EXISTS sign_records (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS ux_sign_records_unique
+ON sign_records(item_id, signer, COALESCE(sign_time, ''), COALESCE(opinion, ''));
+
 CREATE INDEX IF NOT EXISTS idx_sign_records_item_id ON sign_records(item_id);
 
 CREATE TABLE IF NOT EXISTS anythingllm_documents (
@@ -92,6 +95,7 @@ CREATE TABLE IF NOT EXISTS sync_log (
 MIGRATIONS = [
     "CREATE TABLE IF NOT EXISTS anythingllm_documents (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, ref TEXT NOT NULL, uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(document_id, ref))",
     "CREATE TABLE IF NOT EXISTS workspace_documents (id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_slug TEXT NOT NULL, document_id INTEGER NOT NULL, doc_ref TEXT NOT NULL, synced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(workspace_slug, document_id))",
+    "CREATE UNIQUE INDEX IF NOT EXISTS ux_sign_records_unique ON sign_records(item_id, signer, COALESCE(sign_time, ''), COALESCE(opinion, ''))",
 ]
 
 
@@ -146,7 +150,10 @@ def upsert_user(
 
 def insert_sign_record(conn: sqlite3.Connection, item_id: str, signer: str, sign_time: str | None, opinion: str | None) -> None:
     conn.execute(
-        "INSERT INTO sign_records(item_id, signer, sign_time, opinion) VALUES (?, ?, ?, ?)",
+        """
+        INSERT OR IGNORE INTO sign_records(item_id, signer, sign_time, opinion)
+        VALUES (?, ?, ?, ?)
+        """,
         (item_id, signer, sign_time, opinion),
     )
 

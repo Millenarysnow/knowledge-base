@@ -169,6 +169,12 @@ python -m kb.cli sync-anythingllm --skip-users
 python -m kb.cli sync-from-anythingllm --default-dept 信息技术部
 ```
 
+诊断当前环境：
+
+```bash
+python -m kb.cli doctor
+```
+
 > 该命令是兜底实现，会扫描 `data/anythingllm` 下常见文档文件；实机验证后可按 AnythingLLM API/目录结构继续增强。
 
 > AnythingLLM API 会随版本变化，如同步失败，请访问 `http://localhost:8301/api/docs` 核对接口。
