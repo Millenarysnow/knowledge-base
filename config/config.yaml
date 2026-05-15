@@ -89,3 +89,6 @@ anythingllm:
 site:
   # 浏览权限最终需要接入认证；MVP 先生成站点，权限由前置网关/后续服务控制。
   enable_auth_note: true
+  # 对外可访问的 kb-web 完整地址，用于在结构化 Markdown / AnythingLLM 引用中
+  # 写入"文档详情"和"原文件下载"链接。可被环境变量 KB_WEB_PUBLIC_URL 覆盖。
+  public_url: http://localhost:8081

@@ -35,11 +35,17 @@ class AnythingLLMClient:
         configured_base = os.environ.get("ANYTHINGLLM_BASE_URL", acfg.get("base_url", "http://localhost:8301")).rstrip("/")
         self.base_urls = self._candidate_base_urls(configured_base)
         key_env = acfg.get("api_key_env", "ANYTHINGLLM_API_KEY")
-        self.api_key = os.environ.get(key_env, "")
+        self.api_key = os.environ.get(key_env, "").strip()
         if not self.api_key:
-            raise RuntimeError(f"未设置 AnythingLLM API Key 环境变量: {key_env}")
+            raise RuntimeError(
+                f"未设置 AnythingLLM API Key 环境变量: {key_env}。\n"
+                f"  - 宿主机执行：在 .env 中写入 {key_env}=xxx 后重新打开终端，或 export {key_env}=xxx；\n"
+                f"  - 容器内执行：修改 .env 后必须 `docker compose restart kb-worker kb-web` 让新 .env 生效。"
+            )
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"Bearer {self.api_key}"})
+        self.verbose = os.environ.get("KB_VERBOSE", "").lower() in {"1", "true", "yes"}
+        self.last_attempts: List[str] = []
 
     @staticmethod
     def _candidate_base_urls(base_url: str) -> List[str]:
@@ -72,14 +78,19 @@ class AnythingLLMClient:
 
     def request(self, method: str, path: str, **kwargs):
         errors: List[str] = []
+        attempted: List[str] = []
         timeout = kwargs.pop("timeout", 300)
         for url in self.candidate_urls(path):
+            attempted.append(url)
+            if self.verbose:
+                print(f"[anythingllm] {method} {url}")
             try:
                 r = self.session.request(method, url, timeout=timeout, **kwargs)
                 if r.status_code in {404, 405}:
                     errors.append(f"{url}: {r.status_code}")
                     continue
                 r.raise_for_status()
+                self.last_attempts = attempted
                 if not r.text:
                     return {}
                 try:
@@ -88,7 +99,17 @@ class AnythingLLMClient:
                     return {"raw": r.text}
             except Exception as exc:
                 errors.append(f"{url}: {exc}")
-        raise RuntimeError("; ".join(errors))
+        self.last_attempts = attempted
+        # 网络层 DNS 失败时，附加宿主机/容器的提示，方便排查。
+        hint = ""
+        joined = "\n".join(errors)
+        if "Failed to resolve" in joined or "NameResolutionError" in joined or "Name or service not known" in joined:
+            hint = (
+                "\n  提示：检测到 DNS 解析失败。\n"
+                "  - 宿主机执行：传 --anythingllm-base-url http://localhost:8301，或在 .env 中设 ANYTHINGLLM_BASE_URL=http://localhost:8301\n"
+                "  - 容器内执行：使用默认 http://anythingllm:3001 即可，确认 docker compose 已起 anythingllm 服务。"
+            )
+        raise RuntimeError("; ".join(errors) + hint)
 
     def get(self, path: str):
         return self.request("GET", path)
@@ -212,6 +233,7 @@ def sync_anythingllm(cfg: Dict[str, Any], sync_users: bool = True, incremental: 
     """
     client = AnythingLLMClient(cfg)
     project_root = Path(cfg["_project_root"])
+    print(f"[sync] AnythingLLM 候选地址: {', '.join(client.base_urls)}")
     result = {
         "workspaces": 0,
         "users": 0,

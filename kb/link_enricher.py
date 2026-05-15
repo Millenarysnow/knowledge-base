@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -7,12 +8,17 @@ from .config import project_path
 from .db import connect, list_documents
 
 
-def _document_url(doc_id: int) -> str:
-    return f"/docs/{doc_id}"
+def _public_base_url(cfg: Dict[str, Any]) -> str:
+    base = os.environ.get("KB_WEB_PUBLIC_URL") or (cfg.get("site", {}) or {}).get("public_url") or ""
+    return base.rstrip("/")
 
 
-def _download_url(doc_id: int) -> str:
-    return f"/files/{doc_id}"
+def _document_url(base: str, doc_id: int) -> str:
+    return f"{base}/docs/{doc_id}" if base else f"/docs/{doc_id}"
+
+
+def _download_url(base: str, doc_id: int) -> str:
+    return f"{base}/files/{doc_id}" if base else f"/files/{doc_id}"
 
 
 def enrich_wiki_links(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -20,8 +26,11 @@ def enrich_wiki_links(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
     AnythingLLM 的 citation 未必能直接跳转外部系统，因此至少把链接写进 Markdown，
     让 RAG 检索结果中包含可访问地址。kb-web 会对 /docs/{id} 和 /files/{id} 做权限控制。
+
+    若配置或环境变量提供了 public_url，链接为绝对地址；否则退化为相对路径。
     """
     project_root = Path(cfg["_project_root"])
+    base = _public_base_url(cfg)
     updated = 0
     skipped = 0
     marker = "<!-- kb-links -->"
@@ -41,8 +50,8 @@ def enrich_wiki_links(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 ## 知识库链接
 
-- 文档详情：{_document_url(int(doc['id']))}
-- 原文件下载：{_download_url(int(doc['id']))}
+- 文档详情：{_document_url(base, int(doc['id']))}
+- 原文件下载：{_download_url(base, int(doc['id']))}
 """
         if marker in text:
             before = text.split(marker, 1)[0].rstrip()
@@ -52,4 +61,4 @@ def enrich_wiki_links(cfg: Dict[str, Any]) -> Dict[str, Any]:
         if new_text != text:
             path.write_text(new_text, encoding="utf-8")
             updated += 1
-    return {"updated": updated, "skipped": skipped}
+    return {"updated": updated, "skipped": skipped, "public_url": base or "(未配置，使用相对路径)"}

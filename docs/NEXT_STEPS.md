@@ -248,13 +248,13 @@ kb-web 文档详情和下载已实现，但 AnythingLLM 回答中的 citation �
 让 AnythingLLM 回答来源能关联到：
 
 ```text
-http://localhost/docs/{doc_id}
+http://localhost:8081/docs/{doc_id}
 ```
 
 或：
 
 ```text
-http://localhost/files/{doc_id}
+http://localhost:8081/files/{doc_id}
 ```
 
 ### 可能方案

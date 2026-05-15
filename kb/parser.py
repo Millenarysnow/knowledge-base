@@ -50,7 +50,18 @@ def parse_pdf(path: Path) -> str:
         text = page.extract_text() or ""
         if text.strip():
             texts.append(text.strip())
-    return "\n\n".join(texts)
+    body = "\n\n".join(texts)
+    # 抽不到正文时尝试 OCR 兜底（扫描件 PDF）。
+    if not body.strip():
+        try:
+            from .ocr import pdf_ocr
+
+            ocr_text = pdf_ocr(path)
+            if ocr_text:
+                return ocr_text
+        except Exception:
+            pass
+    return body
 
 
 def parse_docx(path: Path) -> str:

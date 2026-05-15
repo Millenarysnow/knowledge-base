@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -f docker-compose.legacy.yml)",
+      "Bash(rm -rf llmwiki nginx)",
+      "Bash(rm -f scripts/ai-classify.py scripts/auto-sort.sh scripts/compile-wiki.sh scripts/create-dept.sh scripts/doc-parser.py scripts/import-dept.sh scripts/import-users.sh scripts/import-view-records.py scripts/manage-workspaces.sh scripts/pull-models.sh scripts/upload-server.py)",
+      "Bash(python tests/test_smoke.py)",
+      "Bash(python -m kb.cli doctor)",
+      "Bash(python -m kb.cli init)"
+    ]
+  }
+}

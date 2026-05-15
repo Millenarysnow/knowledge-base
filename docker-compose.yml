@@ -56,7 +56,9 @@ services:
     working_dir: /app
     restart: unless-stopped
     ports:
-      - "80:8000"
+      # 80 端口在很多机器上被占用，统一对外暴露 8081。
+      # 修改后通过 http://localhost:8081 访问 kb-web。
+      - "${KB_WEB_PORT:-8081}:8000"
     volumes:
       - ./:/app
     environment:

@@ -21,11 +21,11 @@ docker compose -f docker-compose.v2.yml up -d
 访问：
 
 ```text
-AnythingLLM: http://localhost:8301
-权限浏览站点: http://localhost
+AnythingLLM:    http://localhost:8301
+权限浏览站点:   http://localhost:8081
 ```
 
-`http://localhost` 由 `kb-web` 提供权限控制。
+`http://localhost:8081` 由 `kb-web` 提供权限控制。端口可通过 `.env` 中 `KB_WEB_PORT` 调整。
 
 ## 3. 初始化
 
@@ -177,7 +177,7 @@ OLLAMA_MODEL=qwen2.5:1.5b
 浏览站点入口：
 
 ```text
-http://localhost
+http://localhost:8081
 ```
 
 登录方式：

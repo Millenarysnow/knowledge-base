@@ -102,6 +102,8 @@ cat .env
 OLLAMA_MODEL=qwen2.5:7b
 EMBEDDING_MODEL=bge-m3
 ANYTHINGLLM_API_KEY=3WQYGVA-90P46DK-N453FQJ-RMKWSR4
+KB_WEB_PORT=8081
+KB_WEB_PUBLIC_URL=http://localhost:8081
 KB_WEB_ALLOW_LOCAL_AUTH=1
 ```
 
@@ -112,6 +114,8 @@ docs/LOCAL_SECRETS.md
 ```
 
 复制回来。
+
+> **重要**：修改 `.env` 后，必须执行 `docker compose restart kb-worker kb-web` 让容器读取新值。否则容器中的环境变量仍是旧的，会出现"`.env` 里明明配了 API_KEY，但执行命令报未设置"的诡异现象。
 
 > 注意：当前为了方便开发测试，API Key 被保留在仓库里。最终交付前可以删除 `docs/LOCAL_SECRETS.md` 并清理 `.env`。
 
@@ -140,15 +144,23 @@ kb-worker
 kb-web
 ```
 
-现在 `:80` 是 `kb-web`，不是 Nginx。
+现在 `:8081` 是 `kb-web`，不是 Nginx。
 
 访问地址：
 
 ```text
 AnythingLLM: http://localhost:8301
-权限浏览站点: http://localhost
+权限浏览站点: http://localhost:8081
 Ollama: http://localhost:11434
 ```
+
+如果 `8081` 也被占用，可以改 `.env`：
+
+```bash
+KB_WEB_PORT=8082
+```
+
+然后 `docker compose up -d` 让端口生效。
 
 ---
 
@@ -351,7 +363,7 @@ python -m kb.cli build-site
 打开：
 
 ```text
-http://localhost
+http://localhost:8081
 ```
 
 应该跳转到登录页。
@@ -736,7 +748,7 @@ python -m kb.cli sync-anythingllm --skip-users
 
 ```text
 http://localhost:8301  能否问到文档和签阅记录
-http://localhost       能否登录并浏览文档
+http://localhost:8081  能否登录并浏览文档
 ```
 
 这就是当前 MVP 的最小闭环。

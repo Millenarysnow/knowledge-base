@@ -21,30 +21,30 @@ def _load_env_file(path: Path) -> None:
     规则：
     - 空行和 # 注释跳过。
     - KEY=VALUE。
-    - 不覆盖进程中已经设置的环境变量。
+    - 已在进程中存在 *非空* 值的 key 不覆盖；如果环境变量被 docker-compose
+      用 `${VAR:-}` 注入成空字符串，仍然允许 .env 中的真实值生效。
     """
     if not path.exists():
         return
+
+    def _apply(lines):
+        for raw in lines:
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip().lstrip("﻿")
+            value = value.strip().strip('"').strip("'")
+            if not key:
+                continue
+            existing = os.environ.get(key)
+            if existing is None or existing == "":
+                os.environ[key] = value
+
     try:
-        for raw in path.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            if key and key not in os.environ:
-                os.environ[key] = value
+        _apply(path.read_text(encoding="utf-8").splitlines())
     except UnicodeDecodeError:
-        for raw in path.read_text(encoding="gbk", errors="ignore").splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            if key and key not in os.environ:
-                os.environ[key] = value
+        _apply(path.read_text(encoding="gbk", errors="ignore").splitlines())
 
 
 def load_dotenv() -> None:

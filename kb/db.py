@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS documents (
     serial_number TEXT,
     imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     checksum TEXT,
+    import_fingerprint TEXT,
     synced_to_anythingllm INTEGER NOT NULL DEFAULT 0,
     anythingllm_doc_name TEXT
 );
@@ -96,6 +97,7 @@ MIGRATIONS = [
     "CREATE TABLE IF NOT EXISTS anythingllm_documents (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, ref TEXT NOT NULL, uploaded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(document_id, ref))",
     "CREATE TABLE IF NOT EXISTS workspace_documents (id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_slug TEXT NOT NULL, document_id INTEGER NOT NULL, doc_ref TEXT NOT NULL, synced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(workspace_slug, document_id))",
     "CREATE UNIQUE INDEX IF NOT EXISTS ux_sign_records_unique ON sign_records(item_id, signer, COALESCE(sign_time, ''), COALESCE(opinion, ''))",
+    "ALTER TABLE documents ADD COLUMN import_fingerprint TEXT",
 ]
 
 
@@ -112,7 +114,12 @@ def init_db(cfg: Dict[str, Any]) -> None:
     with connect(cfg) as conn:
         conn.executescript(SCHEMA)
         for sql in MIGRATIONS:
-            conn.execute(sql)
+            try:
+                conn.execute(sql)
+            except sqlite3.OperationalError as exc:
+                # ALTER TABLE ADD COLUMN 重复执行会抛 "duplicate column" 等错误，忽略即可。
+                if "duplicate column" not in str(exc).lower():
+                    raise
         conn.commit()
 
 
@@ -181,6 +188,7 @@ def upsert_document(conn: sqlite3.Connection, doc: Dict[str, Any]) -> int:
         "doc_number",
         "serial_number",
         "checksum",
+        "import_fingerprint",
     ]
     values = [doc.get(k) for k in keys]
     conn.execute(
@@ -200,12 +208,27 @@ def upsert_document(conn: sqlite3.Connection, doc: Dict[str, Any]) -> int:
           doc_number=excluded.doc_number,
           serial_number=excluded.serial_number,
           checksum=excluded.checksum,
+          import_fingerprint=excluded.import_fingerprint,
           synced_to_anythingllm=0
         """,
         values,
     )
     row = conn.execute("SELECT id FROM documents WHERE stored_path=?", (doc.get("stored_path"),)).fetchone()
     return int(row["id"])
+
+
+def find_document_by_identifier(conn: sqlite3.Connection, zone: str, department: str | None, file_identifier: str):
+    if not file_identifier:
+        return None
+    if zone == "dept":
+        return conn.execute(
+            "SELECT * FROM documents WHERE zone=? AND department=? AND file_identifier=? LIMIT 1",
+            (zone, department, file_identifier),
+        ).fetchone()
+    return conn.execute(
+        "SELECT * FROM documents WHERE zone=? AND file_identifier=? LIMIT 1",
+        (zone, file_identifier),
+    ).fetchone()
 
 
 def mark_document_uploaded(conn: sqlite3.Connection, document_id: int, ref: str) -> None:

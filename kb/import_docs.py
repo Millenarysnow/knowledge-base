@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .config import category_keys, normalize_category, project_path
-from .db import connect, insert_sign_record, sign_records_for_item, upsert_document
+from .db import connect, find_document_by_identifier, insert_sign_record, sign_records_for_item, upsert_document
 from .parser import SUPPORTED_EXT, parse_file
 from .ollama import ollama_available, ollama_chat
 from .util import (
@@ -224,6 +224,27 @@ def generate_markdown(
     return "\n".join(lines)
 
 
+def _make_fingerprint(file_checksum: str, meta: Dict[str, str], sign_records: List[Dict[str, str]]) -> str:
+    import hashlib
+
+    payload = {
+        "checksum": file_checksum,
+        "meta": {k: meta.get(k, "") for k in sorted(meta)} if meta else {},
+        "signs": sorted(
+            [
+                (
+                    r.get("signer", ""),
+                    r.get("sign_time", ""),
+                    r.get("opinion", ""),
+                )
+                for r in sign_records
+            ]
+        ),
+    }
+    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()
+
+
 def import_docs(
     cfg: Dict[str, Any],
     zone: str,
@@ -231,6 +252,7 @@ def import_docs(
     dept: str | None = None,
     metadata: str | None = None,
     sign_records_path: str | None = None,
+    force: bool = False,
 ) -> Dict[str, Any]:
     zone = zone.strip()
     if zone not in {"public", "dept"}:
@@ -254,6 +276,7 @@ def import_docs(
     zone_dir_name = "public" if zone == "public" else f"dept-{dept}"
 
     imported = 0
+    skipped = 0
     failed: List[Tuple[str, str]] = []
 
     with connect(cfg) as conn:
@@ -272,6 +295,17 @@ def import_docs(
                 item_id = first_value(meta, META_ITEM_ID)
                 doc_number = first_value(meta, META_DOC_NUMBER)
                 serial_number = first_value(meta, META_SERIAL)
+
+                # 增量判断：源文件 sha256 + 元数据 + 签阅记录 三者一致即跳过。
+                source_checksum = file_sha256(f)
+                related_sign_records = sign_map.get(item_id, []) if item_id else []
+                fingerprint = _make_fingerprint(source_checksum, meta, related_sign_records)
+
+                if not force:
+                    existing = find_document_by_identifier(conn, zone, dept if zone == "dept" else None, file_identifier)
+                    if existing and existing["import_fingerprint"] == fingerprint:
+                        skipped += 1
+                        continue
 
                 # 分类优先级：元数据表 > 目录分类 > 文件名/内容关键词 > AI 分类 > 未分类。
                 category = normalize_category(cfg, first_value(meta, META_CATEGORY))
@@ -317,9 +351,9 @@ def import_docs(
                     "doc_number": doc_number,
                     "serial_number": serial_number,
                     "checksum": checksum,
+                    "import_fingerprint": fingerprint,
                 }
 
-                related_sign_records = sign_map.get(item_id, []) if item_id else []
                 source_download = f"/files/{dest_file.relative_to(docs_root).as_posix()}"
                 md = generate_markdown(doc, body, related_sign_records, source_download)
                 raw_path.write_text(body, encoding="utf-8")
@@ -331,4 +365,4 @@ def import_docs(
 
         conn.commit()
 
-    return {"imported": imported, "failed": failed}
+    return {"imported": imported, "skipped": skipped, "failed": failed}

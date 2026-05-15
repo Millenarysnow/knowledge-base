@@ -1,5 +1,15 @@
 # 智能知识库
 
+> **看这一段就够了。先确认你是谁：**
+>
+> | 你是… | 打开这份文档 |
+> |---|---|
+> | 项目维护者 / 同学，准备实机验证或继续开发 | 👉 [`docs/ME_FIRST.md`](docs/ME_FIRST.md) |
+> | 接手开发的 AI agent | 👉 [`docs/AGENT_HANDOFF.md`](docs/AGENT_HANDOFF.md) |
+> | 想了解项目整体设计 / 配置 / 命令清单 | 看下面 + [文档索引](#10-文档) |
+
+---
+
 本项目用于构建一个**本地化部署、基于 AnythingLLM + Ollama 的团队智能知识库**。
 
 核心能力：
@@ -64,11 +74,12 @@ docker compose up -d
 访问：
 
 ```text
-AnythingLLM: http://localhost:8301
-权限浏览站点: http://localhost
+AnythingLLM:    http://localhost:8301
+权限浏览站点:   http://localhost:8081   (kb-web，端口可改 KB_WEB_PORT)
+Ollama:         http://localhost:11434
 ```
 
-`http://localhost` 现在由 `kb-web` 提供权限控制：普通用户只能看公共区 + 本部门，管理员可看全部。
+`http://localhost:8081` 现在由 `kb-web` 提供权限控制：普通用户只能看公共区 + 本部门，管理员可看全部。
 
 ## 3. 导入用户
 
@@ -151,10 +162,18 @@ Windows CMD：
 set ANYTHINGLLM_API_KEY=ANLLM-xxxx
 ```
 
+> 推荐：写入 `.env` 后执行 `docker compose restart kb-worker kb-web`，再 `docker exec -it kb-worker python -m kb.cli sync-anythingllm` 即可，避免宿主机解析不到 `anythingllm` 主机名。
+
 同步：
 
 ```bash
 python -m kb.cli sync-anythingllm
+```
+
+宿主机直接执行时，需要覆盖 AnythingLLM 地址：
+
+```bash
+python -m kb.cli --anythingllm-base-url http://localhost:8301 sync-anythingllm
 ```
 
 只同步 workspace 和文档、不创建用户：
@@ -210,12 +229,21 @@ python tests/test_smoke.py
 
 ## 10. 文档
 
-- [重构计划](docs/REBUILD_PLAN.md)
-- [当前进度总览](docs/PROGRESS.md)
-- [交接执行手册](docs/HANDOFF_STEPS.md)
-- [技术设计](docs/DESIGN.md)
-- [运维手册](docs/OPERATIONS.md)
-- [后续开发计划](docs/NEXT_STEPS.md)
-- [已开发内容说明](docs/IMPLEMENTATION.md)
-- [重构思路说明](docs/ARCHITECTURE_THINKING.md)
-- [本地测试敏感配置备份](docs/LOCAL_SECRETS.md)
+> 第一次进项目？先看 [`docs/ME_FIRST.md`](docs/ME_FIRST.md)（人类版）或 [`docs/AGENT_HANDOFF.md`](docs/AGENT_HANDOFF.md)（AI agent 版）。
+
+| 主题 | 文档 |
+|---|---|
+| **同学交接（今晚就跑这个）** | [`docs/ME_FIRST.md`](docs/ME_FIRST.md) |
+| **AI agent 接手** | [`docs/AGENT_HANDOFF.md`](docs/AGENT_HANDOFF.md) |
+| 上一轮改动清单 | [`docs/CHANGELOG_DEV.md`](docs/CHANGELOG_DEV.md) |
+| 配置说明（.env vs config.yaml） | [`docs/CONFIG.md`](docs/CONFIG.md) |
+| 重构计划 | [`docs/REBUILD_PLAN.md`](docs/REBUILD_PLAN.md) |
+| 当前进度总览 | [`docs/PROGRESS.md`](docs/PROGRESS.md) |
+| 详细操作手册 | [`docs/HANDOFF_STEPS.md`](docs/HANDOFF_STEPS.md) |
+| 技术设计 | [`docs/DESIGN.md`](docs/DESIGN.md) |
+| 运维手册 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) |
+| 后续开发计划 | [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md) |
+| 已开发内容 | [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md) |
+| 重构思路（为什么这样设计） | [`docs/ARCHITECTURE_THINKING.md`](docs/ARCHITECTURE_THINKING.md) |
+| 本地测试敏感配置备份 | [`docs/LOCAL_SECRETS.md`](docs/LOCAL_SECRETS.md) |
+| 同学之前提的实测问题 | [`docs/question.md`](docs/question.md)（多数已在最近一轮修复） |
