@@ -69,6 +69,12 @@ def cmd_build_site(args) -> None:
     cfg = load_config(args.config)
     ensure_dirs(cfg)
     init_db(cfg)
+    if args.enrich_links:
+        from .link_enricher import enrich_wiki_links
+
+        enrich_res = enrich_wiki_links(cfg)
+        print("链接补充结果：")
+        _print_result(enrich_res)
     res = build_site(cfg)
     print(f"✅ 站点生成完成: {res['site']}，文档 {res['documents']} 个")
 
@@ -91,7 +97,7 @@ def cmd_sync_from_anythingllm(args) -> None:
     init_db(cfg)
     from .sync_from_anythingllm import sync_from_anythingllm
 
-    res = sync_from_anythingllm(cfg, storage=args.storage, default_dept=args.default_dept)
+    res = sync_from_anythingllm(cfg, storage=args.storage, default_dept=args.default_dept, force=args.force)
     _print_result(res)
 
 
@@ -102,9 +108,15 @@ def cmd_update(args) -> None:
     if args.sync_from_anythingllm:
         from .sync_from_anythingllm import sync_from_anythingllm
 
-        sync_res = sync_from_anythingllm(cfg, storage=args.storage, default_dept=args.default_dept)
+        sync_res = sync_from_anythingllm(cfg, storage=args.storage, default_dept=args.default_dept, force=args.force_sync_from_anythingllm)
         print("AnythingLLM 反向同步结果：")
         _print_result(sync_res)
+    if args.enrich_links:
+        from .link_enricher import enrich_wiki_links
+
+        enrich_res = enrich_wiki_links(cfg)
+        print("链接补充结果：")
+        _print_result(enrich_res)
     res = build_site(cfg)
     print(f"✅ update 完成：已重建站点，文档 {res['documents']} 个")
     print("ℹ️ 如需同步到 AnythingLLM，请执行 sync-anythingllm。")
@@ -210,6 +222,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.set_defaults(func=cmd_import_docs)
 
     sp = sub.add_parser("build-site", help="生成结构化浏览站点")
+    sp.add_argument("--enrich-links", action="store_true", help="向 wiki Markdown 追加 kb-web 文档详情/下载链接")
     sp.set_defaults(func=cmd_build_site)
 
     sp = sub.add_parser("sync-anythingllm", help="同步工作区、用户和文档到 AnythingLLM")
@@ -220,12 +233,15 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("sync-from-anythingllm", help="从 AnythingLLM 本地存储目录扫描用户上传文件并导入")
     sp.add_argument("--storage", help="AnythingLLM storage 目录，默认 data/anythingllm")
     sp.add_argument("--default-dept", help="无法从路径识别部门时使用的默认部门")
+    sp.add_argument("--force", action="store_true", help="忽略反向同步状态，强制重新导入扫描到的文件")
     sp.set_defaults(func=cmd_sync_from_anythingllm)
 
     sp = sub.add_parser("update", help="增量更新：可选反向同步 AnythingLLM 后重建站点")
     sp.add_argument("--sync-from-anythingllm", action="store_true", help="先扫描 AnythingLLM 本地存储目录导入用户上传文件")
     sp.add_argument("--storage", help="AnythingLLM storage 目录，默认 data/anythingllm")
     sp.add_argument("--default-dept", help="反向同步时无法识别部门的默认部门")
+    sp.add_argument("--force-sync-from-anythingllm", action="store_true", help="反向同步时忽略状态，强制重新导入")
+    sp.add_argument("--enrich-links", action="store_true", help="向 wiki Markdown 追加 kb-web 文档详情/下载链接")
     sp.set_defaults(func=cmd_update)
 
     sp = sub.add_parser("doctor", help="诊断配置、数据库和外部服务连通性")

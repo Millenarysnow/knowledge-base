@@ -11,7 +11,7 @@ mkdir -p "$ROOT/data"
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] update start"
   if [ -n "${SYNC_FROM_ANYTHINGLLM:-}" ]; then
     if [ -n "${DEFAULT_DEPT:-}" ]; then
-      python3 -m kb.cli update --sync-from-anythingllm --default-dept "$DEFAULT_DEPT"
+      python3 -m kb.cli update --sync-from-anythingllm ${FORCE_SYNC_FROM_ANYTHINGLLM:+--force-sync-from-anythingllm} --default-dept "$DEFAULT_DEPT" ${FORCE_SYNC_FROM_ANYTHINGLLM:+--force-sync-from-anythingllm}
     else
       python3 -m kb.cli update --sync-from-anythingllm
     fi

@@ -32,7 +32,8 @@ class AnythingLLMClient:
         if requests is None:
             raise RuntimeError("缺少 requests 依赖")
         acfg = cfg.get("anythingllm", {})
-        self.base_url = os.environ.get("ANYTHINGLLM_BASE_URL", acfg.get("base_url", "http://localhost:3001")).rstrip("/")
+        configured_base = os.environ.get("ANYTHINGLLM_BASE_URL", acfg.get("base_url", "http://localhost:8301")).rstrip("/")
+        self.base_urls = self._candidate_base_urls(configured_base)
         key_env = acfg.get("api_key_env", "ANYTHINGLLM_API_KEY")
         self.api_key = os.environ.get(key_env, "")
         if not self.api_key:
@@ -40,10 +41,34 @@ class AnythingLLMClient:
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"Bearer {self.api_key}"})
 
+    @staticmethod
+    def _candidate_base_urls(base_url: str) -> List[str]:
+        """生成候选 AnythingLLM 基地址。
+
+        - 宿主机直接执行 CLI 时通常应访问 http://localhost:8301。
+        - docker compose 容器内执行时通常应访问 http://anythingllm:3001。
+        为降低使用门槛，这里自动增加互补 fallback。
+        """
+        urls = [base_url.rstrip("/")]
+        if "anythingllm" in base_url:
+            urls.append("http://localhost:8301")
+            urls.append("http://127.0.0.1:8301")
+        if "localhost" in base_url or "127.0.0.1" in base_url:
+            urls.append("http://anythingllm:3001")
+        out: List[str] = []
+        for u in urls:
+            if u and u not in out:
+                out.append(u)
+        return out
+
     def candidate_urls(self, path: str) -> List[str]:
         if not path.startswith("/"):
             path = "/" + path
-        return [self.base_url + "/api/v1" + path, self.base_url + "/api" + path]
+        urls: List[str] = []
+        for base in self.base_urls:
+            urls.append(base + "/api/v1" + path)
+            urls.append(base + "/api" + path)
+        return urls
 
     def request(self, method: str, path: str, **kwargs):
         errors: List[str] = []
